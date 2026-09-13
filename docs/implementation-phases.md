@@ -42,20 +42,25 @@ Sources (all free for personal use):
 
 Steps:
 
-1. `scripts/build_bands.py` — download or read the source files, keep bands
-   1–6, join the extra columns, cut each 1K band into `a` (first 500) and
-   `b` (second 500).
-2. Write `vocab/bands/{1k-a,…,6k-b,awl}.csv` with columns:
+1. `scripts/fetch_raw.sh` downloads the sources into `data/raw/`;
+   `scripts/extract_raw.py` turns the xlsx/pdf/html into slim TSVs in
+   `data/extract/` (regenerated, not committed).
+2. `scripts/build_bands.py` reads the cut table `vocab/subbands.csv`, ranks the
+   6,000 families, joins the extra columns and writes **one file**,
+   `vocab/index.csv`, with columns:
 
    ```
-   word, rank, subband, zipf, prevalence, cefr, gse, pos, family, definition, example
+   family, subband, rank, pos_in_band, zipf, prevalence, cefr, gse, awl, pos, members, definition, example
    ```
 
-   `definition` and `example` can stay empty at first; they are filled in
-   Phase 3.
-3. `vocab/my-words.csv` — same columns, empty, for words met in practice.
+   `definition` and `example` stay empty at first; they are filled in
+   Phase 3. To study one level, filter on `subband`.
+3. `scripts/audit_data.py` writes `data/AUDIT.md` (coverage, difficulty
+   gradient, mirror check).
+4. `vocab/my-words.csv` — same columns, empty, for words met in practice.
 
-Output: 13 CSV files, ~6,600 rows total.
+Output: `vocab/index.csv`, ~6,000 rows. Status: done (issue #1); grouping
+refinements tracked in issue #2.
 
 ## Phase 2 — Yes/No level test
 

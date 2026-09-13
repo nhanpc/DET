@@ -32,7 +32,7 @@ def pct(n: int, d: int) -> str:
 
 def main() -> None:
     index = read(VOCAB / "index.csv", ",")
-    cuts = read(VOCAB / "bands" / "_index.csv", ",")
+    cuts = read(VOCAB / "subbands.csv", ",")
     order = [c["subband"] for c in sorted(cuts, key=lambda c: int(c["order"]))]
     groups: dict[str, list[dict]] = defaultdict(list)
     for r in index:

@@ -92,12 +92,12 @@ DET/
 │   ├── det-format.md            # test structure and scoring
 │   └── implementation-phases.md # build plan for this repo
 ├── data/
-│   ├── raw/                     # downloaded sources (SOURCES.md lists URL, date, licence)
-│   ├── extract/                 # slim TSV extracts the build reads
+│   ├── raw/                     # Nation word lists + SOURCES.md (URL, date, licence)
+│   ├── extract/                 # slim TSV extracts the build reads (regenerated, not committed)
 │   └── AUDIT.md                 # data audit: coverage, gradient, mirror check
 ├── vocab/
-│   ├── index.csv                # master family → sub-band map (6,007 rows)
-│   ├── bands/                   # _index.csv (cut table), 1k-a.csv … 6k-b.csv, awl.csv
+│   ├── index.csv                # one row per word family: sub-band, rank, zipf, cefr, members …
+│   ├── subbands.csv             # cut table: rank range, CEFR label, DET range per sub-band
 │   ├── my-words.csv             # words met in practice
 │   ├── decks/                   # Anki exports (one card per family)
 │   ├── tests/                   # generated yes/no tests + results

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build the vocabulary index and the 13 sub-band files.
+"""Build the vocabulary index (one row per word family, with its sub-band).
 
-Reads   data/raw/nation/basewrd1-6.txt, data/extract/*.tsv, vocab/bands/_index.csv
-Writes  vocab/index.csv, vocab/bands/<subband>.csv, data/dropped.txt
+Reads   data/raw/nation/basewrd1-6.txt, data/extract/*.tsv, vocab/subbands.csv
+Writes  vocab/index.csv, data/dropped.txt
 
 Standard library only. Deterministic: the same inputs give byte-identical outputs.
 Grouping rules are specified in GitHub issue nhanpc/DET#2.
@@ -21,11 +21,11 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 EXTRACT = ROOT / "data" / "extract"
 VOCAB = ROOT / "vocab"
-BANDS = VOCAB / "bands"
+SUBBANDS = VOCAB / "subbands.csv"
 
 WORD_RE = re.compile(r"^[a-z][a-z'-]*$")
-INDEX_COLS = ["family", "subband", "rank", "pos_in_band", "zipf", "prevalence", "cefr", "gse", "awl", "pos", "members"]
-BAND_COLS = INDEX_COLS + ["definition", "example"]
+INDEX_COLS = ["family", "subband", "rank", "pos_in_band", "zipf", "prevalence", "cefr", "gse", "awl", "pos", "members",
+              "definition", "example"]
 
 # SUBTLEX dominant-PoS labels -> short tags used in the Oxford list
 SUBTLEX_POS = {"Noun": "n", "Verb": "v", "Adjective": "adj", "Adverb": "adv", "Preposition": "prep",
@@ -83,7 +83,7 @@ def parse_nation() -> tuple[list[dict], list[str]]:
 
 # ---------------------------------------------------------------- main build
 def build() -> int:
-    cuts = read_csv(BANDS / "_index.csv")
+    cuts = read_csv(SUBBANDS)
     rank_bands = [(int(c["rank_from"]), int(c["rank_to"]), c["subband"]) for c in cuts if c["rank_from"]]
     band_order = [c["subband"] for c in sorted(cuts, key=lambda c: int(c["order"]))]
 
@@ -184,17 +184,11 @@ def build() -> int:
              "pos": f["pos"], "members": "|".join(f["members"]), "definition": "", "example": ""}
         return [d[c] for c in cols]
 
-    BANDS.mkdir(parents=True, exist_ok=True)
     ordered = [f for name in band_order for f in groups.get(name, [])]
     with (VOCAB / "index.csv").open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh, lineterminator="\n")
         w.writerow(INDEX_COLS)
         w.writerows(row_of(f, INDEX_COLS) for f in ordered)
-    for name in band_order:
-        with (BANDS / f"{name}.csv").open("w", newline="", encoding="utf-8") as fh:
-            w = csv.writer(fh, lineterminator="\n")
-            w.writerow(BAND_COLS)
-            w.writerows(row_of(f, BAND_COLS) for f in groups.get(name, []))
     (ROOT / "data" / "dropped.txt").write_text("\n".join(dropped) + ("\n" if dropped else ""), encoding="utf-8")
 
     print(f"families: {len(families)}  (nation 1-6k: {len(families) - awl_new}, awl-only: {awl_new})")
