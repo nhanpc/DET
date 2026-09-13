@@ -1,0 +1,8 @@
+family,subband,rank,pos_in_band,zipf,prevalence,cefr,gse,awl,pos,members,definition,example
+ethic,awl,,1,3.024,0.9843,B2,,1,n,ethical|ethically|ethics|unethical,,
+widespread,awl,,2,2.973,0.9950,B2,,1,adj,,,
+deduce,awl,,3,2.769,0.9837,,,1,v,deduced|deduces|deducing|deduction|deductions,,
+negate,awl,,4,2.571,0.9663,,,1,v,negative|negated|negates|negating|negatively|negatives,,
+administrate,awl,,5,1.769,0.9672,,,1,v,administrates|administration|administrations|administrative|administratively|administrator|administrators,,
+append,awl,,6,,0.9527,,,1,,appendix|appended|appends|appending|appendices|appendixes,,
+so-called,awl,,7,,,B2,,1,adj,,,

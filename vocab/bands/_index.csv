@@ -1,0 +1,14 @@
+subband,order,rank_from,rank_to,cefr,det_low,det_high,mastery_pct,source
+1k-a,1,1,500,A1,10,30,85,nation-bnc-coca
+1k-b,2,501,1000,A1,10,30,85,nation-bnc-coca
+2k-a,3,1001,1500,A2,35,55,85,nation-bnc-coca
+2k-b,4,1501,2000,A2,35,55,85,nation-bnc-coca
+3k-a,5,2001,2500,B1,60,85,85,nation-bnc-coca
+3k-b,6,2501,3000,B1,60,85,85,nation-bnc-coca
+4k-a,7,3001,3500,B2,90,105,85,nation-bnc-coca
+4k-b,8,3501,4000,B2,90,105,85,nation-bnc-coca
+5k-a,9,4001,4500,B2+,105,115,85,nation-bnc-coca
+5k-b,10,4501,5000,B2+,105,115,85,nation-bnc-coca
+6k-a,11,5001,5500,C1,120,160,85,nation-bnc-coca
+6k-b,12,5501,6000,C1,120,160,85,nation-bnc-coca
+awl,13,,,B2-C1,105,160,85,coxhead-awl

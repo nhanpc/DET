@@ -91,14 +91,19 @@ DET/
 ├── docs/
 │   ├── det-format.md            # test structure and scoring
 │   └── implementation-phases.md # build plan for this repo
+├── data/
+│   ├── raw/                     # downloaded sources (SOURCES.md lists URL, date, licence)
+│   ├── extract/                 # slim TSV extracts the build reads
+│   └── AUDIT.md                 # data audit: coverage, gradient, mirror check
 ├── vocab/
-│   ├── bands/                   # 1k-a.csv … 6k-b.csv, awl.csv
+│   ├── index.csv                # master family → sub-band map (6,007 rows)
+│   ├── bands/                   # _index.csv (cut table), 1k-a.csv … 6k-b.csv, awl.csv
 │   ├── my-words.csv             # words met in practice
 │   ├── decks/                   # Anki exports (one card per family)
 │   ├── tests/                   # generated yes/no tests + results
 │   └── progress.md              # % known per sub-band → estimated level
 ├── practice/                    # per-task drills (speaking, writing, dictation)
-└── scripts/                     # list builders, test generator, progress report
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, audit_data.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

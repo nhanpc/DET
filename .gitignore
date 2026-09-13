@@ -22,3 +22,12 @@ venv/
 
 # Logs
 *.log
+
+# Raw word-data downloads (re-fetch with scripts/fetch_raw.sh).
+# Committed: Nation basewrd1-6.txt (small, free for personal/research use) and data/raw/SOURCES.md.
+# Ignored: large originals and redistributable-unclear files; their slim extracts live in data/extract/.
+data/raw/**/*.zip
+data/raw/**/*.xlsx
+data/raw/**/*.pdf
+data/raw/**/*.html
+data/raw/**/*.dat
