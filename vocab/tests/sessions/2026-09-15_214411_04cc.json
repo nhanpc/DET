@@ -1,0 +1,663 @@
+{
+ "id": "2026-09-15_214411_04cc",
+ "started": "2026-09-15T21:44:11",
+ "stop_reason": "second reversal",
+ "blocks": [
+  {
+   "no": 1,
+   "subband": "4k-a",
+   "hits": 6,
+   "false_alarms": 0,
+   "score": 0.6,
+   "items": [
+    {
+     "word": "brew",
+     "real": true,
+     "definition": "drink made by steeping and boiling and fermenting rather than distilling",
+     "answer": true,
+     "ms": 2292
+    },
+    {
+     "word": "coubrerve",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 3447
+    },
+    {
+     "word": "stevs",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1975
+    },
+    {
+     "word": "utter",
+     "real": true,
+     "definition": "without qualification; used informally as (often pejorative) intensifiers",
+     "answer": false,
+     "ms": 1245
+    },
+    {
+     "word": "tuck",
+     "real": true,
+     "definition": "fit snugly into",
+     "answer": false,
+     "ms": 1166
+    },
+    {
+     "word": "gut",
+     "real": true,
+     "definition": "the part of the alimentary canal between the stomach and the anus",
+     "answer": true,
+     "ms": 754
+    },
+    {
+     "word": "heir",
+     "real": true,
+     "definition": "a person who is entitled by law or by the terms of a will to inherit the estate of another",
+     "answer": false,
+     "ms": 1209
+    },
+    {
+     "word": "illuminate",
+     "real": true,
+     "definition": "introduce light into",
+     "answer": true,
+     "ms": 1193
+    },
+    {
+     "word": "breachsone",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1771
+    },
+    {
+     "word": "virgin",
+     "real": true,
+     "definition": "a person who has never had sex",
+     "answer": true,
+     "ms": 855
+    },
+    {
+     "word": "axe",
+     "real": true,
+     "definition": "an edge tool with a heavy bladed head mounted across a handle",
+     "answer": true,
+     "ms": 1270
+    },
+    {
+     "word": "diary",
+     "real": true,
+     "definition": "a daily written record of (usually personal) experiences and observations",
+     "answer": true,
+     "ms": 1325
+    },
+    {
+     "word": "delaph",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 991
+    },
+    {
+     "word": "sphere",
+     "real": true,
+     "definition": "a particular environment or walk of life",
+     "answer": false,
+     "ms": 1753
+    },
+    {
+     "word": "tympstripts",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1570
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "subband": "3k-b",
+   "hits": 7,
+   "false_alarms": 0,
+   "score": 0.7,
+   "items": [
+    {
+     "word": "aroves",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2917
+    },
+    {
+     "word": "fierce",
+     "real": true,
+     "definition": "marked by extreme and violent energy",
+     "answer": false,
+     "ms": 768
+    },
+    {
+     "word": "tender",
+     "real": true,
+     "definition": "given to sympathy or gentleness or sentimentality",
+     "answer": true,
+     "ms": 1947
+    },
+    {
+     "word": "etiog",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 812
+    },
+    {
+     "word": "contend",
+     "real": true,
+     "definition": "maintain or assert",
+     "answer": false,
+     "ms": 4600
+    },
+    {
+     "word": "festival",
+     "real": true,
+     "definition": "a day or period of time set aside for feasting and celebration",
+     "answer": true,
+     "ms": 705
+    },
+    {
+     "word": "codemels",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1524
+    },
+    {
+     "word": "innovate",
+     "real": true,
+     "definition": "bring something new to an environment",
+     "answer": true,
+     "ms": 978
+    },
+    {
+     "word": "urled",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2798
+    },
+    {
+     "word": "spush",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2265
+    },
+    {
+     "word": "leather",
+     "real": true,
+     "definition": "an animal skin made smooth and flexible by removing the hair and then tanning",
+     "answer": true,
+     "ms": 4519
+    },
+    {
+     "word": "endure",
+     "real": true,
+     "definition": "put up with something or somebody unpleasant",
+     "answer": true,
+     "ms": 1130
+    },
+    {
+     "word": "virtue",
+     "real": true,
+     "definition": "the quality of doing what is right and avoiding what is wrong",
+     "answer": false,
+     "ms": 1484
+    },
+    {
+     "word": "gravity",
+     "real": true,
+     "definition": "(physics) the force of attraction between all masses in the universe; especially the attraction of the earth's mass for bodies near its surface",
+     "answer": true,
+     "ms": 696
+    },
+    {
+     "word": "hazard",
+     "real": true,
+     "definition": "a source of danger; a possibility of incurring loss or misfortune",
+     "answer": true,
+     "ms": 956
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "subband": "3k-a",
+   "hits": 9,
+   "false_alarms": 0,
+   "score": 0.9,
+   "items": [
+    {
+     "word": "geten",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 7074
+    },
+    {
+     "word": "sireprow",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 894
+    },
+    {
+     "word": "clause",
+     "real": true,
+     "definition": "(grammar) an expression including a subject and predicate functioning as a part of a complex sentence",
+     "answer": true,
+     "ms": 1726
+    },
+    {
+     "word": "aim",
+     "real": true,
+     "definition": "point or cause to go (blows, weapons, or objects such as photographic equipment) towards",
+     "answer": true,
+     "ms": 1030
+    },
+    {
+     "word": "peak",
+     "real": true,
+     "definition": "the most extreme possible amount or value",
+     "answer": true,
+     "ms": 743
+    },
+    {
+     "word": "staughtmess",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 911
+    },
+    {
+     "word": "abandon",
+     "real": true,
+     "definition": "forsake, leave behind",
+     "answer": true,
+     "ms": 796
+    },
+    {
+     "word": "sector",
+     "real": true,
+     "definition": "a plane figure bounded by two radii and the included arc of a circle",
+     "answer": true,
+     "ms": 747
+    },
+    {
+     "word": "failure",
+     "real": true,
+     "definition": "an act that fails",
+     "answer": true,
+     "ms": 674
+    },
+    {
+     "word": "achieve",
+     "real": true,
+     "definition": "to gain with effort",
+     "answer": true,
+     "ms": 700
+    },
+    {
+     "word": "potential",
+     "real": true,
+     "definition": "existing in possibility",
+     "answer": true,
+     "ms": 3590
+    },
+    {
+     "word": "confer",
+     "real": true,
+     "definition": "have a conference in order to talk something over",
+     "answer": false,
+     "ms": 874
+    },
+    {
+     "word": "samus",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 810
+    },
+    {
+     "word": "rational",
+     "real": true,
+     "definition": "consistent with or based on or using reason",
+     "answer": true,
+     "ms": 5619
+    },
+    {
+     "word": "alfives",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1135
+    }
+   ]
+  },
+  {
+   "no": 4,
+   "subband": "3k-b",
+   "hits": 10,
+   "false_alarms": 0,
+   "score": 1.0,
+   "items": [
+    {
+     "word": "smeam",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2915
+    },
+    {
+     "word": "receiver",
+     "real": true,
+     "definition": "set that receives radio or tv signals",
+     "answer": true,
+     "ms": 1108
+    },
+    {
+     "word": "grooshpaint",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 816
+    },
+    {
+     "word": "jail",
+     "real": true,
+     "definition": "a correctional institution used to detain persons who are in the lawful custody of the government (either accused persons awaiting trial or convicted persons serving a sentence)",
+     "answer": true,
+     "ms": 722
+    },
+    {
+     "word": "palm",
+     "real": true,
+     "definition": "the inner surface of the hand from the wrist to the base of the fingers",
+     "answer": true,
+     "ms": 820
+    },
+    {
+     "word": "sin",
+     "real": true,
+     "definition": "estrangement from god",
+     "answer": true,
+     "ms": 691
+    },
+    {
+     "word": "crickyeurs",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 947
+    },
+    {
+     "word": "yield",
+     "real": true,
+     "definition": "production of a certain amount",
+     "answer": true,
+     "ms": 690
+    },
+    {
+     "word": "tusex",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 912
+    },
+    {
+     "word": "fate",
+     "real": true,
+     "definition": "an event (or a course of events) that will inevitably happen in the future",
+     "answer": true,
+     "ms": 953
+    },
+    {
+     "word": "deplent",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1758
+    },
+    {
+     "word": "multiple",
+     "real": true,
+     "definition": "having or involving or consisting of more than one part or entity or individual",
+     "answer": true,
+     "ms": 617
+    },
+    {
+     "word": "tactic",
+     "real": true,
+     "definition": "a plan for attaining a particular goal",
+     "answer": true,
+     "ms": 1009
+    },
+    {
+     "word": "comedy",
+     "real": true,
+     "definition": "light and humorous drama with a happy ending",
+     "answer": true,
+     "ms": 901
+    },
+    {
+     "word": "opera",
+     "real": true,
+     "definition": "a drama set to music; consists of singing with orchestral accompaniment and an orchestral overture and interludes",
+     "answer": true,
+     "ms": 682
+    }
+   ]
+  },
+  {
+   "no": 5,
+   "subband": "4k-a",
+   "hits": 8,
+   "false_alarms": 0,
+   "score": 0.8,
+   "items": [
+    {
+     "word": "verse",
+     "real": true,
+     "definition": "literature in metrical form",
+     "answer": true,
+     "ms": 2748
+    },
+    {
+     "word": "theft",
+     "real": true,
+     "definition": "the act of taking something from someone unlawfully",
+     "answer": true,
+     "ms": 684
+    },
+    {
+     "word": "avenue",
+     "real": true,
+     "definition": "a line of approach",
+     "answer": false,
+     "ms": 1123
+    },
+    {
+     "word": "newbeon",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1138
+    },
+    {
+     "word": "comsered",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1076
+    },
+    {
+     "word": "vode",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 897
+    },
+    {
+     "word": "predecessor",
+     "real": true,
+     "definition": "one who precedes you in time (as in holding a position or office)",
+     "answer": true,
+     "ms": 1947
+    },
+    {
+     "word": "magnificent",
+     "real": true,
+     "definition": "characterized by grandeur",
+     "answer": true,
+     "ms": 1304
+    },
+    {
+     "word": "scent",
+     "real": true,
+     "definition": "a distinctive odor that is pleasant",
+     "answer": false,
+     "ms": 978
+    },
+    {
+     "word": "cheel",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 979
+    },
+    {
+     "word": "fluid",
+     "real": true,
+     "definition": "a substance that is fluid at room temperature and pressure",
+     "answer": true,
+     "ms": 804
+    },
+    {
+     "word": "poque",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 840
+    },
+    {
+     "word": "metaphor",
+     "real": true,
+     "definition": "a figure of speech in which an expression is used to refer to something that it does not literally denote in order to suggest a similarity",
+     "answer": true,
+     "ms": 2120
+    },
+    {
+     "word": "distress",
+     "real": true,
+     "definition": "psychological suffering",
+     "answer": true,
+     "ms": 1029
+    },
+    {
+     "word": "cater",
+     "real": true,
+     "definition": "give what is desired or needed, especially support, food or sustenance",
+     "answer": true,
+     "ms": 1786
+    }
+   ]
+  }
+ ],
+ "result": {
+  "level": "3k-b",
+  "lowest_failed": "4k-a",
+  "cefr": "B1",
+  "det_low": 60,
+  "det_high": 85,
+  "blocks": 5,
+  "items": 75,
+  "false_alarms": 0,
+  "n_pseudo": 25,
+  "fa_rate": 0.0,
+  "reliable": true,
+  "path": [
+   {
+    "block": 1,
+    "subband": "4k-a",
+    "score": 0.6,
+    "mastered": false
+   },
+   {
+    "block": 2,
+    "subband": "3k-b",
+    "score": 0.7,
+    "mastered": false
+   },
+   {
+    "block": 3,
+    "subband": "3k-a",
+    "score": 0.9,
+    "mastered": true
+   },
+   {
+    "block": 4,
+    "subband": "3k-b",
+    "score": 1.0,
+    "mastered": true
+   },
+   {
+    "block": 5,
+    "subband": "4k-a",
+    "score": 0.8,
+    "mastered": false
+   }
+  ],
+  "pooled": [
+   {
+    "subband": "3k-a",
+    "hits": 9,
+    "n_real": 10,
+    "false_alarms": 0,
+    "n_pseudo": 5,
+    "score": 0.9,
+    "mastered": true
+   },
+   {
+    "subband": "3k-b",
+    "hits": 17,
+    "n_real": 20,
+    "false_alarms": 0,
+    "n_pseudo": 10,
+    "score": 0.85,
+    "mastered": true
+   },
+   {
+    "subband": "4k-a",
+    "hits": 14,
+    "n_real": 20,
+    "false_alarms": 0,
+    "n_pseudo": 10,
+    "score": 0.7,
+    "mastered": false
+   }
+  ],
+  "misses": [
+   "utter",
+   "tuck",
+   "heir",
+   "sphere",
+   "fierce",
+   "contend",
+   "virtue",
+   "confer",
+   "avenue",
+   "scent"
+  ]
+ }
+}

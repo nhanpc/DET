@@ -1,0 +1,7 @@
+# Level-test app (issue #4). The data scripts need only the standard library, except
+# extract_raw.py (openpyxl). Install:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+fastapi>=0.110
+uvicorn>=0.29
+# tests
+pytest>=8
+httpx>=0.27

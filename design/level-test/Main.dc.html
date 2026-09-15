@@ -1,0 +1,362 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap">
+  <style>
+    body { margin: 0; background: #f4f5f7; }
+    a { color: #3a6ea5; } a:hover { color: #2c5580; }
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid #3a6ea5; outline-offset: 2px; }
+    table { border-collapse: collapse; }
+  </style>
+</helmet>
+<div style="width: 1100px; min-height: 720px; box-sizing: border-box; background: #f4f5f7; color: #1b1f24; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; font-size: 16px; line-height: 1.5; display: flex; flex-direction: column;">
+
+  <!-- ===== START ===== -->
+  <sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 48px; gap: 40px;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 560px; text-align: center;">
+        <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">DET 120 · Phase 2</div>
+        <h1 style="margin: 0; font-family: 'Source Serif 4', Georgia, serif; font-weight: 500; font-size: 44px; line-height: 1.15; letter-spacing: -0.01em;">Vocabulary level test</h1>
+        <p style="margin: 0; font-size: 18px; color: #3d444d; text-wrap: pretty;">You will see one word at a time. Decide whether it is a real English word. Some words are invented — say <strong>No</strong> to those.</p>
+      </div>
+
+      <div style="display: flex; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; background: #ffffff; border: 1px solid #e3e6ea; border-radius: 10px; min-width: 160px;">
+          <div style="font-size: 22px; font-weight: 500;">45–90 words</div>
+          <div style="font-size: 13px; color: #667085;">in blocks of 15</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; background: #ffffff; border: 1px solid #e3e6ea; border-radius: 10px; min-width: 160px;">
+          <div style="font-size: 22px; font-weight: 500;">3–6 minutes</div>
+          <div style="font-size: 13px; color: #667085;">about 5 seconds a word</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; background: #ffffff; border: 1px solid #e3e6ea; border-radius: 10px; min-width: 160px;">
+          <div style="font-size: 22px; font-weight: 500;">Adaptive</div>
+          <div style="font-size: 13px; color: #667085;">starts mid-level, moves up or down</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 32px; color: #3d444d;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #c9ced6; border-bottom-width: 3px; border-radius: 6px; background: #ffffff; font-family: 'IBM Plex Mono', Menlo, monospace; font-weight: 500;">Y</span>
+          <span>Real word</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #c9ced6; border-bottom-width: 3px; border-radius: 6px; background: #ffffff; font-family: 'IBM Plex Mono', Menlo, monospace; font-weight: 500;">N</span>
+          <span>Not a word</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 14px;">
+        <button onClick="{{ start }}" style="height: 52px; padding: 0 36px; border: 0; border-radius: 8px; background: {{ accent }}; color: #ffffff; font-size: 17px; font-weight: 500;">Start test</button>
+        <div style="font-size: 13px; color: #667085;">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== TEST ===== -->
+  <sc-if value="{{ isTest }}" hint-placeholder-val="{{ false }}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-bottom: 1px solid #e3e6ea;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <span style="font-size: 14px; color: #667085;">Block {{ blockNo }} of at most 6</span>
+          <div style="display: flex; gap: 4px;">
+            <sc-for list="{{ segs }}" as="s" hint-placeholder-count="6">
+              <div style="width: 28px; height: 6px; border-radius: 3px; background: {{ s.bg }};"></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="font-family: 'IBM Plex Mono', Menlo, monospace; font-size: 14px; color: #667085;">{{ itemNo }} / 15</div>
+        <div style="font-family: 'IBM Plex Mono', Menlo, monospace; font-size: 14px; color: #667085;">{{ clock }}</div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 40px;">
+        <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 72px; font-weight: 400; line-height: 1.1; letter-spacing: -0.01em; color: #1b1f24;">{{ word }}</div>
+        <div style="display: flex; gap: 6px;">
+          <sc-for list="{{ dots }}" as="d" hint-placeholder-count="15">
+            <div style="width: 8px; height: 8px; border-radius: 4px; background: {{ d.bg }};"></div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: center; gap: 16px; padding: 0 40px 56px;">
+        <button onClick="{{ answerNo }}" style="display: flex; align-items: center; justify-content: center; gap: 14px; width: 260px; height: 60px; border: 1px solid #c9ced6; border-radius: 10px; background: #ffffff; color: #1b1f24; font-size: 17px; font-weight: 500;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid #c9ced6; border-bottom-width: 3px; border-radius: 6px; background: #f4f5f7; font-family: 'IBM Plex Mono', Menlo, monospace; font-size: 14px;">N</span>
+          <span>Not a word</span>
+        </button>
+        <button onClick="{{ answerYes }}" style="display: flex; align-items: center; justify-content: center; gap: 14px; width: 260px; height: 60px; border: 1px solid #c9ced6; border-radius: 10px; background: #ffffff; color: #1b1f24; font-size: 17px; font-weight: 500;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid #c9ced6; border-bottom-width: 3px; border-radius: 6px; background: #f4f5f7; font-family: 'IBM Plex Mono', Menlo, monospace; font-size: 14px;">Y</span>
+          <span>Real word</span>
+        </button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== BETWEEN BLOCKS ===== -->
+  <sc-if value="{{ isBetween }}" hint-placeholder-val="{{ false }}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 64px 48px; text-align: center;">
+      <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">Block {{ doneBlockNo }} complete</div>
+      <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 36px; font-weight: 500; line-height: 1.2;">Ready for block {{ blockNo }}?</div>
+      <div style="font-size: 16px; color: #667085;">The next words may be easier or harder — that is the test adjusting to you.</div>
+      <button onClick="{{ continueBlock }}" style="height: 52px; padding: 0 36px; border: 0; border-radius: 8px; background: {{ accent }}; color: #ffffff; font-size: 17px; font-weight: 500;">Continue</button>
+      <div style="font-size: 13px; color: #667085;">or press Space</div>
+    </div>
+  </sc-if>
+
+  <!-- ===== RESULT ===== -->
+  <sc-if value="{{ isResult }}" hint-placeholder-val="{{ false }}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 32px; padding: 48px 64px 56px;">
+
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 32px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">Your level · {{ r.date }}</div>
+          <div style="display: flex; align-items: baseline; gap: 16px;">
+            <div style="font-family: 'Source Serif 4', Georgia, serif; font-size: 72px; font-weight: 500; line-height: 1; letter-spacing: -0.02em;">{{ r.level }}</div>
+            <div style="font-size: 22px; color: #3d444d;">{{ r.cefr }}</div>
+          </div>
+          <div style="font-size: 18px; color: #3d444d;">Estimated DET <strong style="color: #1b1f24;">{{ r.det }}</strong></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+          <div style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: {{ r.relBg }}; color: {{ r.relFg }}; font-size: 13px; font-weight: 500;">
+            <span style="width: 8px; height: 8px; border-radius: 4px; background: {{ r.relFg }};"></span>
+            <span>{{ r.relText }}</span>
+          </div>
+          <div style="font-size: 13px; color: #667085;">{{ r.items }} words · {{ r.time }} · false alarms {{ r.fa }}</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">Path</div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <sc-for list="{{ r.path }}" as="p" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid #e3e6ea; border-radius: 8px; background: #ffffff;">
+                <span style="width: 8px; height: 8px; border-radius: 4px; background: {{ p.color }};"></span>
+                <span style="font-family: 'IBM Plex Mono', Menlo, monospace; font-size: 14px; font-weight: 500;">{{ p.band }}</span>
+                <span style="font-size: 13px; color: #667085;">{{ p.score }}</span>
+              </div>
+              <span style="color: #c9ced6; font-size: 14px;">{{ p.arrow }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">Pooled scores</div>
+          <table style="width: 100%; background: #ffffff; border: 1px solid #e3e6ea; border-radius: 10px; overflow: hidden; font-size: 14px;">
+            <thead>
+              <tr style="color: #667085; text-align: left;">
+                <th style="padding: 10px 14px; font-weight: 500; border-bottom: 1px solid #e3e6ea;">Sub-band</th>
+                <th style="padding: 10px 14px; font-weight: 500; border-bottom: 1px solid #e3e6ea;">Hits</th>
+                <th style="padding: 10px 14px; font-weight: 500; border-bottom: 1px solid #e3e6ea;">False alarms</th>
+                <th style="padding: 10px 14px; font-weight: 500; border-bottom: 1px solid #e3e6ea;">Score</th>
+                <th style="padding: 10px 14px; font-weight: 500; border-bottom: 1px solid #e3e6ea;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ r.pooled }}" as="row" hint-placeholder-count="2">
+                <tr>
+                  <td style="padding: 10px 14px; border-bottom: 1px solid #eef0f2; font-family: 'IBM Plex Mono', Menlo, monospace; font-weight: 500;">{{ row.band }}</td>
+                  <td style="padding: 10px 14px; border-bottom: 1px solid #eef0f2;">{{ row.hits }}</td>
+                  <td style="padding: 10px 14px; border-bottom: 1px solid #eef0f2;">{{ row.fa }}</td>
+                  <td style="padding: 10px 14px; border-bottom: 1px solid #eef0f2;">{{ row.score }}</td>
+                  <td style="padding: 10px 14px; border-bottom: 1px solid #eef0f2; color: {{ row.color }}; font-weight: 500;">{{ row.mark }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="font-size: 13px; color: #667085;">Score = hits ÷ real words − false alarms ÷ invented words. Mastered at 0.85.</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #667085;">Words you missed · {{ r.missCount }}</div>
+          <div style="display: flex; flex-direction: column; background: #ffffff; border: 1px solid #e3e6ea; border-radius: 10px; overflow: hidden;">
+            <sc-for list="{{ r.misses }}" as="m" hint-placeholder-count="4">
+              <div style="display: flex; gap: 16px; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid #eef0f2;">
+                <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; min-width: 130px;">{{ m.w }}</span>
+                <span style="font-size: 14px; color: #3d444d;">{{ m.d }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button onClick="{{ saveMisses }}" style="height: 48px; padding: 0 24px; border: 0; border-radius: 8px; background: {{ accent }}; color: #ffffff; font-size: 16px; font-weight: 500;">{{ r.saveLabel }}</button>
+        <button onClick="{{ retake }}" style="height: 48px; padding: 0 24px; border: 1px solid #c9ced6; border-radius: 8px; background: #ffffff; color: #1b1f24; font-size: 16px; font-weight: 500;">Retake</button>
+        <span style="font-size: 13px; color: #667085; margin-left: 8px;">Session written to vocab/tests/levels.csv and results.csv</span>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#3a6ea5","options":["#3a6ea5","#2f7d6b","#6b5ca5","#1b1f24"]},"view":{"editor":"enum","default":"live","options":["live","sample result"]},"$preview":{"width":1100,"height":720}}'>
+const ORDER = ['1k-a','1k-b','2k-a','2k-b','3k-a','3k-b','4k-a','4k-b','5k-a','5k-b','6k-a','6k-b'];
+const META = {
+  '1k-a':['A1','10–30'],'1k-b':['A1','10–30'],'2k-a':['A2–B1','35–55'],'2k-b':['A2–B1','35–55'],
+  '3k-a':['B1','60–85'],'3k-b':['B1','60–85'],'4k-a':['B2','90–105'],'4k-b':['B2','90–105'],
+  '5k-a':['B2+','105–115'],'5k-b':['B2+','105–115'],'6k-a':['C1','120+'],'6k-b':['C1','120+']
+};
+const MASTERY = 0.85;
+const BANK = {
+  '3k-a': [{ real: [['urge','force or impel in an indicated direction'],['export','goods sold to a foreign country'],['hence','from that fact or reason'],['output','final product; the things produced'],['gradual','proceeding in small stages'],['transform','change in form or appearance'],['literature','creative writing of recognized artistic value'],['republic','a state in which supreme power lies with the citizens'],['intervene','get involved, so as to alter or hinder an action'],['recognition','the state of being recognized or acknowledged']], pseudo: ['plive','morrant','tunder','sprale','cliven'] }],
+  '3k-b': [
+    { real: [['plot','a secret scheme to do something'],['foster','promote the growth of'],['peer','a person of equal standing with another in a group'],['venture','an undertaking with an uncertain outcome'],['greet','express greetings upon meeting someone'],['charter','a document incorporating an institution'],['ratio','the relative magnitudes of two quantities'],['highlight','move into the foreground to make more prominent'],['bargain','an agreement fixing a price or terms'],['trigger','put in motion or move to act']], pseudo: ['fostle','grennet','varble','dramp','torrish'] },
+    { real: [['fade','become less clearly visible; disappear gradually'],['senses','a general conscious awareness'],['squeeze','compress with force, out of natural shape'],['legend','a story about mythical or supernatural beings'],['overseas','beyond or across the sea'],['accountable','liable to account for one\'s actions'],['archaeology','the study of prehistoric people and their cultures'],['dedicate','give entirely to a specific person, activity, or cause'],['extract','a solution obtained by soaking a substance'],['rescue','free from harm or evil']], pseudo: ['lendric','brastle','flimber','cordent','ambrick'] }
+  ],
+  '4k-a': [
+    { real: [['dynamic','characterized by action or forcefulness'],['retrieve','get or find back; recover'],['glimpse','a quick look'],['armour','protective covering for the body in battle'],['subjective','taking place within the mind, modified by individual bias'],['fraction','a small part or item forming a piece of a whole'],['informal','not formal'],['flush','turn red, as if in embarrassment'],['rotate','turn on or around an axis'],['nonsense','a message that seems to convey no meaning']], pseudo: ['plandish','vorbid','clavet','snolly','merchent'] },
+    { real: [['obsess','preoccupy the mind excessively'],['deploy','distribute systematically or strategically'],['noble','impressive in size, manner, or appearance'],['surrender','give up to the power of another'],['warrant','a writ from a court commanding police to act'],['breeze','a slight wind'],['indirect','having intervening factors or influences'],['plead','appeal or request earnestly'],['prevail','be larger in number, power, or importance'],['ambulance','a vehicle that takes people to and from hospitals']], pseudo: ['quander','grelth','pilme','dorbit','tromble'] }
+  ],
+  '4k-b': [
+    { real: [['vocation','the occupation for which you are trained'],['alternate','every second one of a series'],['automobile','a motor vehicle with four wheels'],['agony','intense suffering; acute mental or physical pain'],['hybrid','something composed of parts of different origin'],['milligram','one thousandth of a gram'],['gamble','money risked for possible gain'],['vitamin','an organic substance essential in small quantities'],['rack','a framework for holding or storing things'],['fringe','the outside boundary of something']], pseudo: ['trobule','gantic','meantile','fendrom','vintrel'] },
+    { real: [['intact','undamaged; lacking nothing essential'],['telescope','a magnifier of images of distant objects'],['bullet','a projectile fired from a gun'],['mandate','an official instruction or command'],['escort','accompany as a guard or companion'],['likewise','in like or similar manner'],['soar','rise rapidly'],['galaxy','a large system of stars'],['grill','a restaurant where food is cooked on a grill'],['glide','move smoothly and effortlessly']], pseudo: ['escorn','glidder','mandrist','bullick','telsome'] }
+  ],
+  '5k-a': [
+    { real: [['dilute','lessen the strength of a solution'],['whatsoever','of any kind at all'],['clergy','priests and ministers collectively'],['tailor','a person who makes and alters garments'],['referee','the chief official in a sports match'],['convene','meet formally'],['commence','take the first step in carrying out an action'],['brochure','a small book usually having a paper cover'],['crusade','a series of actions advancing a principle'],['baron','a nobleman of varying rank']], pseudo: ['crusant','convale','brochent','dilumn','cleriff'] },
+    { real: [['ruthless','without mercy or pity'],['coil','something wound in a continuous series of loops'],['nominal','in name only; very small'],['ditch','forsake; abandon'],['morale','a state of confidence and purpose in a group'],['enquire','address a question to and expect an answer'],['chimney','a vertical flue that carries smoke away'],['superficial','concerned only with what is apparent; not deep'],['pistol','a firearm held and fired with one hand'],['pierce','cut or make a way through']], pseudo: ['pierst','nomble','coilder','ditchet','morvale'] }
+  ],
+  '5k-b': [{ real: [['discern','detect with the senses'],['recollect','recall knowledge from memory'],['pants','trousers'],['orphan','a child who has lost both parents'],['battalion','an army unit of several companies'],['erode','wear away gradually'],['paralyse','make powerless and unable to function'],['junk','things of little value'],['solemn','dignified and somber in manner'],['shuffle','walk by dragging one\'s feet']], pseudo: ['erodle','solmish','orphant','battlin','shufter'] }]
+};
+
+function rng(seed) { let t = seed + 0x6D2B79F5; return function () { t += 0x6D2B79F5; let x = t; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
+function shuffle(arr, seed) { const r = rng(seed); const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function buildBlock(band, setIdx, blockIdx) {
+  const set = BANK[band][setIdx];
+  const items = set.real.map(([w, d]) => ({ w, d, real: true })).concat(set.pseudo.map(w => ({ w, d: '', real: false })));
+  return shuffle(items, blockIdx * 101 + 7);
+}
+function fmtClock(ms) { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function fmtTime(ms) { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ' m ' + String(s % 60).padStart(2, '0') + ' s'; }
+function today() { const d = new Date(); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+const GREEN = '#2f8a5e', RED = '#b8453f', GREY = '#c9ced6';
+
+// The worked example from issue #4, for the "sample result" view.
+const SAMPLE = {
+  blocks: [
+    { band: '4k-a', hits: 9, fa: 0, misses: [{ w: 'earl', d: 'a British peer ranking below a marquess' }] },
+    { band: '4k-b', hits: 8, fa: 1, misses: [{ w: 'rehabilitate', d: 'help to readapt, as to a former state of health' }, { w: 'meantime', d: 'the time between one event and another' }] },
+    { band: '4k-a', hits: 9, fa: 0, misses: [{ w: 'lieutenant', d: 'an officer holding a commissioned rank' }] }
+  ],
+  elapsed: 220000
+};
+
+function summarise(blocks, elapsed, saved) {
+  const pooledMap = {};
+  blocks.forEach(b => { const p = pooledMap[b.band] || (pooledMap[b.band] = { band: b.band, hits: 0, real: 0, fa: 0, pseudo: 0 }); p.hits += b.hits; p.real += 10; p.fa += b.fa; p.pseudo += 5; });
+  const pooled = ORDER.filter(b => pooledMap[b]).map(b => { const p = pooledMap[b]; const score = p.hits / p.real - p.fa / p.pseudo; const ok = score >= MASTERY; return { band: b, hits: p.hits + '/' + p.real, fa: p.fa + '/' + p.pseudo, score: score.toFixed(2), mark: ok ? 'mastered' : 'not yet', color: ok ? GREEN : RED, ok }; });
+  const mastered = pooled.filter(p => p.ok);
+  const level = mastered.length ? mastered[mastered.length - 1].band : null;
+  const totalFa = blocks.reduce((s, b) => s + b.fa, 0), totalPseudo = blocks.length * 5;
+  const faRate = totalPseudo ? totalFa / totalPseudo : 0;
+  const reliable = faRate <= 0.25;
+  const misses = blocks.flatMap(b => b.misses);
+  const path = blocks.map((b, i) => { const score = b.hits / 10 - b.fa / 5; return { band: b.band, score: score.toFixed(2), color: score >= MASTERY ? GREEN : RED, arrow: i < blocks.length - 1 ? '→' : '' }; });
+  return {
+    date: today(),
+    level: level || '—',
+    cefr: level ? META[level][0] : 'below the bands tested',
+    det: level ? META[level][1] : '—',
+    relText: reliable ? 'Reliable' : 'Unreliable — please retake',
+    relFg: reliable ? GREEN : RED,
+    relBg: reliable ? '#e6f3ec' : '#f8e7e5',
+    items: blocks.length * 15,
+    time: fmtTime(elapsed),
+    fa: totalFa + '/' + totalPseudo,
+    path, pooled, misses,
+    missCount: misses.length,
+    saveLabel: saved ? 'Saved to my-words.csv' : 'Save missed words to my-words.csv'
+  };
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { screen: 'start', blocks: [], band: 6, items: [], itemIdx: 0, hits: 0, fa: 0, misses: [], used: {}, lastDir: 0, reversals: 0, startedAt: 0, now: 0, saved: false };
+    this.onKey = this.onKey.bind(this);
+  }
+  componentDidMount() {
+    document.addEventListener('keydown', this.onKey);
+    this.tick = setInterval(() => { if (this.state.screen === 'test' || this.state.screen === 'between') this.setState({ now: Date.now() }); }, 1000);
+  }
+  componentWillUnmount() { document.removeEventListener('keydown', this.onKey); clearInterval(this.tick); }
+  onKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (this.state.screen === 'test' && (k === 'y' || k === 'n')) { e.preventDefault(); this.answer(k === 'y'); }
+    else if (this.state.screen === 'between' && k === ' ') { e.preventDefault(); this.continueBlock(); }
+    else if (this.state.screen === 'start' && (k === ' ' || k === 'enter')) { e.preventDefault(); this.start(); }
+  }
+  startBlock(band, extra) {
+    const name = ORDER[band];
+    const used = Object.assign({}, this.state.used);
+    const setIdx = used[name] || 0;
+    used[name] = setIdx + 1;
+    const blockIdx = this.state.blocks.length;
+    this.setState(Object.assign({ screen: 'test', band, items: buildBlock(name, setIdx, blockIdx), itemIdx: 0, hits: 0, fa: 0, misses: [], used }, extra || {}));
+  }
+  start() {
+    const t = Date.now();
+    this.setState({ blocks: [], used: {}, lastDir: 0, reversals: 0, saved: false, startedAt: t, now: t }, () => this.startBlock(6));
+  }
+  answer(yes) {
+    const s = this.state;
+    const it = s.items[s.itemIdx];
+    let hits = s.hits, fa = s.fa, misses = s.misses;
+    if (it.real && yes) hits++;
+    if (it.real && !yes) misses = misses.concat([{ w: it.w, d: it.d }]);
+    if (!it.real && yes) fa++;
+    if (s.itemIdx + 1 < s.items.length) { this.setState({ hits, fa, misses, itemIdx: s.itemIdx + 1 }); return; }
+    // block finished
+    const block = { band: ORDER[s.band], hits, fa, misses };
+    const blocks = s.blocks.concat([block]);
+    const score = hits / 10 - fa / 5;
+    const dir = score >= MASTERY ? 1 : -1;
+    const reversals = s.reversals + (s.lastDir && dir !== s.lastDir ? 1 : 0);
+    const next = Math.max(0, Math.min(ORDER.length - 1, s.band + dir));
+    const nextName = ORDER[next];
+    const bankLeft = BANK[nextName] && (s.used[nextName] || 0) < BANK[nextName].length;
+    const stop = reversals >= 2 || blocks.length >= 6 || next === s.band || !bankLeft;
+    if (stop) this.setState({ blocks, screen: 'result', hits, fa, misses, reversals, lastDir: dir, now: Date.now() });
+    else this.setState({ blocks, screen: 'between', hits, fa, misses, reversals, lastDir: dir, band: next });
+  }
+  continueBlock() { this.startBlock(this.state.band); }
+  renderVals() {
+    const s = this.state;
+    const accent = this.props.accent ?? '#3a6ea5';
+    const sample = (this.props.view ?? 'live') === 'sample result' && s.screen === 'start';
+    const screen = sample ? 'result' : s.screen;
+    const blockNo = s.blocks.length + 1;
+    const elapsed = s.now - s.startedAt;
+    const r = screen === 'result' ? (sample ? summarise(SAMPLE.blocks, SAMPLE.elapsed, s.saved) : summarise(s.blocks, elapsed, s.saved)) : summarise([], 0, false);
+    return {
+      accent,
+      isStart: screen === 'start', isTest: screen === 'test', isBetween: screen === 'between', isResult: screen === 'result',
+      blockNo, doneBlockNo: s.blocks.length,
+      segs: [0, 1, 2, 3, 4, 5].map(i => ({ bg: i < s.blocks.length ? accent : (i === s.blocks.length && screen === 'test' ? '#9db4d0' : GREY) })),
+      itemNo: s.itemIdx + 1,
+      dots: Array.from({ length: 15 }, (_, i) => ({ bg: i < s.itemIdx ? accent : (i === s.itemIdx ? '#1b1f24' : GREY) })),
+      word: s.items[s.itemIdx] ? s.items[s.itemIdx].w : '',
+      clock: fmtClock(elapsed),
+      r,
+      start: () => this.start(),
+      answerYes: () => this.answer(true),
+      answerNo: () => this.answer(false),
+      continueBlock: () => this.continueBlock(),
+      saveMisses: () => this.setState({ saved: true }),
+      retake: () => this.setState({ screen: 'start', blocks: [], saved: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

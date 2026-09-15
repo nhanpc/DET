@@ -1,0 +1,69 @@
+"""Item bank: real words from vocab/index.csv, invented words from vocab/pseudowords.csv."""
+from __future__ import annotations
+
+import csv
+import random
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+VOCAB = ROOT / "vocab"
+
+WORD = re.compile(r"^[a-z]{3,}$")   # headwords shown in the test: plain lower-case, 3+ letters
+
+
+@dataclass(frozen=True)
+class Subband:
+    name: str
+    order: int
+    cefr: str
+    det_low: int
+    det_high: int
+    mastery: float          # 0.85
+
+
+@dataclass(frozen=True)
+class RealWord:
+    word: str
+    subband: str
+    definition: str
+
+
+def read_csv(path: Path) -> list[dict]:
+    with path.open(encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def load_subbands(path: Path = VOCAB / "subbands.csv") -> list[Subband]:
+    rows = sorted(read_csv(path), key=lambda r: int(r["order"]))
+    return [Subband(r["subband"], int(r["order"]), r["cefr"], int(r["det_low"]), int(r["det_high"]),
+                    int(r["mastery_pct"]) / 100) for r in rows]
+
+
+class Bank:
+    """Draws words for one sub-band, never repeating a word inside a session."""
+
+    def __init__(self, index_path: Path = VOCAB / "index.csv", pseudo_path: Path = VOCAB / "pseudowords.csv"):
+        self.real: dict[str, list[RealWord]] = {}
+        self.index: dict[str, dict] = {}
+        for r in read_csv(index_path):
+            self.index[r["family"]] = r
+            if WORD.match(r["family"]):
+                self.real.setdefault(r["subband"], []).append(RealWord(r["family"], r["subband"], r["definition"]))
+        self.pseudo: dict[str, list[str]] = {}
+        for r in read_csv(pseudo_path):
+            self.pseudo.setdefault(r["subband"], []).append(r["pseudoword"])
+
+    def has(self, subband: str, n_real: int, n_pseudo: int, used: set[str]) -> bool:
+        real = [w for w in self.real.get(subband, []) if w.word not in used]
+        pseudo = [p for p in self.pseudo.get(subband, []) if p not in used]
+        return len(real) >= n_real and len(pseudo) >= n_pseudo
+
+    def draw_real(self, subband: str, n: int, used: set[str], rng: random.Random) -> list[RealWord]:
+        pool = [w for w in self.real[subband] if w.word not in used]
+        return rng.sample(pool, n)
+
+    def draw_pseudo(self, subband: str, n: int, used: set[str], rng: random.Random) -> list[str]:
+        pool = [p for p in self.pseudo[subband] if p not in used]
+        return rng.sample(pool, n)

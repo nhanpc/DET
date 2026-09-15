@@ -80,6 +80,30 @@ Extra per-word difficulty numbers are stored so the lists can be re-cut later:
 **Rule:** ≥85% on a sub-band's yes/no test = mastered → start the next one.
 Your vocabulary level is the highest mastered sub-band.
 
+## Test your level
+
+A small local web app runs the yes/no test adaptively (issue #4): it starts at
+`4k-a`, shows 10 real words + 5 invented words per block, moves up a sub-band
+when the corrected score (`hits/10 − false alarms/5`) is ≥ 0.85 and down
+otherwise, and stops on the second direction change or after 6 blocks —
+45–90 words, 3–6 minutes.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app          # then open http://localhost:8000
+.venv/bin/python -m pytest -q           # simulated learners for every sub-band
+```
+
+Keys: `Y` = real word, `N` = not a word, `Space` = next block. The result
+page shows the level, the estimated DET range, the pooled score per sub-band,
+a guessing check (false-alarm rate > 25 % → unreliable) and the words you
+missed, which one click appends to `vocab/my-words.csv`. Every session is
+written to `vocab/tests/` (`levels.csv`, `results.csv`, `sessions/*.json`).
+
+The invented words come from the British Lexicon Project (nonwords that native
+speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
+mirror that sub-band's headwords: `vocab/pseudowords.csv`.
+
 ```mermaid
 flowchart LR
     T[Yes/No test on sub-band N] -->|"≥ 85%"| M[Mark N mastered] --> N1[Test sub-band N+1]
@@ -103,12 +127,16 @@ DET/
 │   ├── subbands.csv             # cut table: rank range, CEFR label, DET range per sub-band
 │   ├── senses.csv               # dictionary: up to 3 senses per family (definition, example) from Open English WordNet
 │   ├── relations.csv            # synonym / antonym / similar links between families
-│   ├── my-words.csv             # words met in practice
+│   ├── pseudowords.csv          # invented words for the yes/no test (British Lexicon Project)
+│   ├── my-words.csv             # words met in practice + words missed in level tests
 │   ├── decks/                   # Anki exports (one card per family)
-│   ├── tests/                   # generated yes/no tests + results
+│   ├── tests/                   # level-test sessions: levels.csv, results.csv, sessions/*.json
 │   └── progress.md              # % known per sub-band → estimated level
+├── app/                         # level-test app: FastAPI backend + static/index.html
+├── tests/                       # pytest: simulated learners, API round-trip
+├── design/                      # UI design canvases (artboard sources)
 ├── practice/                    # per-task drills (speaking, writing, dictation)
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, audit_data.py
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

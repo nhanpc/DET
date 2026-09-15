@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vocabulary level test</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap">
+<style>
+  :root {
+    --bg: #f4f5f7; --surface: #fff; --text: #1b1f24; --text-2: #3d444d; --muted: #667085;
+    --border: #e3e6ea; --border-2: #c9ced6; --line: #eef0f2;
+    --accent: #3a6ea5; --accent-2: #9db4d0; --green: #2f8a5e; --green-bg: #e6f3ec; --red: #b8453f; --red-bg: #f8e7e5;
+    --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', Menlo, monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--sans); }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { max-width: 1100px; min-height: 100vh; margin: 0 auto; display: flex; flex-direction: column; padding-inline: 16px; }
+  [hidden] { display: none !important; }
+
+  .eyebrow { font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .primary { height: 52px; padding: 0 36px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 500; }
+  .secondary { height: 48px; padding: 0 24px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 16px; font-weight: 500; }
+  .key { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border-2); border-bottom-width: 3px; border-radius: 6px; background: var(--surface); font: 500 14px var(--mono); }
+  .note { font-size: 13px; color: var(--muted); }
+
+  /* start */
+  #start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding-block: 64px; }
+  #start .intro { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 560px; text-align: center; }
+  #start h1 { margin: 0; font: 500 44px/1.15 var(--serif); letter-spacing: -.01em; }
+  #start p { margin: 0; font-size: 18px; color: var(--text-2); text-wrap: pretty; }
+  .facts { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .fact { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; min-width: 160px; }
+  .fact b { font-size: 22px; font-weight: 500; }
+  .keys { display: flex; align-items: center; gap: 32px; color: var(--text-2); }
+  .keys div { display: flex; align-items: center; gap: 10px; }
+  .cta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+  /* test */
+  #test { flex: 1; display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 24px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--muted); }
+  .bar .left { display: flex; align-items: center; gap: 14px; }
+  .segs { display: flex; gap: 4px; }
+  .segs i { width: 28px; height: 6px; border-radius: 3px; background: var(--border-2); }
+  .segs i.done { background: var(--accent); } .segs i.now { background: var(--accent-2); }
+  .mono { font: 500 14px var(--mono); }
+  .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 40px 16px; }
+  #word { font: 400 72px/1.1 var(--serif); letter-spacing: -.01em; overflow-wrap: anywhere; text-align: center; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--border-2); }
+  .dots i.done { background: var(--accent); } .dots i.now { background: var(--text); }
+  .answers { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; padding: 0 16px 56px; }
+  .answers button { display: flex; align-items: center; justify-content: center; gap: 14px; width: 260px; max-width: 100%; height: 60px; border: 1px solid var(--border-2); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 17px; font-weight: 500; }
+  .answers button:active { background: var(--bg); }
+  .answers .key { width: 30px; height: 30px; background: var(--bg); }
+
+  /* between */
+  #between { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding-block: 64px; text-align: center; }
+  #between h2 { margin: 0; font: 500 36px/1.2 var(--serif); }
+
+  /* result */
+  #result { flex: 1; display: flex; flex-direction: column; gap: 32px; padding: 48px 24px 56px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+  .head .level { display: flex; flex-direction: column; gap: 6px; }
+  .head .big { display: flex; align-items: baseline; gap: 16px; }
+  .head .big b { font: 500 72px/1 var(--serif); letter-spacing: -.02em; }
+  .head .big span { font-size: 22px; color: var(--text-2); }
+  .det { font-size: 18px; color: var(--text-2); } .det b { color: var(--text); }
+  .rel { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .pill i { width: 8px; height: 8px; border-radius: 4px; background: currentColor; }
+  .pill.ok { background: var(--green-bg); color: var(--green); } .pill.bad { background: var(--red-bg); color: var(--red); }
+  .section { display: flex; flex-direction: column; gap: 10px; }
+  .path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  .chip i { width: 8px; height: 8px; border-radius: 4px; }
+  .chip .mono { font-weight: 500; } .chip small { font-size: 13px; color: var(--muted); }
+  .arrow { color: var(--border-2); }
+  .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } #word { font-size: 48px; } .head .big b { font-size: 56px; } }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14px; }
+  th { padding: 10px 14px; font-weight: 500; text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  td.ok { color: var(--green); font-weight: 500; } td.bad { color: var(--red); font-weight: 500; }
+  .misses { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .misses div { display: flex; gap: 16px; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .misses b { font: 400 18px var(--serif); min-width: 130px; } .misses span { font-size: 14px; color: var(--text-2); }
+  .misses .empty { color: var(--muted); font-size: 14px; }
+  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main>
+
+<section id="start">
+  <div class="intro">
+    <div class="eyebrow">DET 120 · Phase 2</div>
+    <h1>Vocabulary level test</h1>
+    <p>You will see one word at a time. Decide whether it is a real English word. Some words are invented — say <strong>No</strong> to those.</p>
+  </div>
+  <div class="facts">
+    <div class="fact"><b>45–90 words</b><span class="note">in blocks of 15</span></div>
+    <div class="fact"><b>3–6 minutes</b><span class="note">about 5 seconds a word</span></div>
+    <div class="fact"><b>Adaptive</b><span class="note">starts mid-level, moves up or down</span></div>
+  </div>
+  <div class="keys">
+    <div><span class="key">Y</span><span>Real word</span></div>
+    <div><span class="key">N</span><span>Not a word</span></div>
+  </div>
+  <div class="cta">
+    <button class="primary" id="btn-start">Start test</button>
+    <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
+    <div class="note" id="last" hidden></div>
+  </div>
+</section>
+
+<section id="test" hidden>
+  <div class="bar">
+    <div class="left"><span>Block <span id="block-no">1</span> of at most <span id="max-blocks">6</span></span><div class="segs" id="segs"></div></div>
+    <div class="mono"><span id="item-no">1</span> / <span id="item-total">15</span></div>
+    <div class="mono" id="clock">0:00</div>
+  </div>
+  <div class="stage">
+    <div id="word"></div>
+    <div class="dots" id="dots"></div>
+  </div>
+  <div class="answers">
+    <button id="btn-no"><span class="key">N</span><span>Not a word</span></button>
+    <button id="btn-yes"><span class="key">Y</span><span>Real word</span></button>
+  </div>
+</section>
+
+<section id="between" hidden>
+  <div class="eyebrow">Block <span id="done-no">1</span> complete</div>
+  <h2>Ready for block <span id="next-no">2</span>?</h2>
+  <div style="color: var(--muted)">The next words may be easier or harder — that is the test adjusting to you.</div>
+  <button class="primary" id="btn-continue">Continue</button>
+  <div class="note">or press Space</div>
+</section>
+
+<section id="result" hidden>
+  <div class="head">
+    <div class="level">
+      <div class="eyebrow">Your level · <span id="r-date"></span></div>
+      <div class="big"><b id="r-level"></b><span id="r-cefr"></span></div>
+      <div class="det">Estimated DET <b id="r-det"></b></div>
+    </div>
+    <div class="rel">
+      <div class="pill" id="r-pill"><i></i><span id="r-rel"></span></div>
+      <div class="note" id="r-meta"></div>
+    </div>
+  </div>
+  <div class="section"><div class="eyebrow">Path</div><div class="path" id="r-path"></div></div>
+  <div class="cols">
+    <div class="section">
+      <div class="eyebrow">Pooled scores</div>
+      <table><thead><tr><th>Sub-band</th><th>Hits</th><th>False alarms</th><th>Score</th><th></th></tr></thead><tbody id="r-pooled"></tbody></table>
+      <div class="note">Score = hits ÷ real words − false alarms ÷ invented words. Mastered at 0.85.</div>
+    </div>
+    <div class="section">
+      <div class="eyebrow">Words you missed · <span id="r-miss-count">0</span></div>
+      <div class="misses" id="r-misses"></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="primary" id="btn-save">Save missed words to my-words.csv</button>
+    <button class="secondary" id="btn-retake">Retake</button>
+    <span class="note" id="r-saved">Session written to vocab/tests/levels.csv and results.csv</span>
+  </div>
+</section>
+
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const screens = ['start', 'test', 'between', 'result'];
+  let screen = 'start', sid = null, block = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
+
+  const api = async (path, opts) => {
+    const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    return r.json();
+  };
+  const show = (name) => { screen = name; screens.forEach(s => { $(s).hidden = s !== name; }); };
+  const fmt = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+
+  // ---- start
+  async function init() {
+    const c = await api('/api/config');
+    maxBlocks = c.max_blocks;
+    $('max-blocks').textContent = maxBlocks;
+    if (c.last) {
+      $('last').textContent = `Last result: ${c.last.level || 'below 1k-b'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)');
+      $('last').hidden = false;
+    }
+  }
+  async function start() {
+    const d = await api('/api/session', { method: 'POST' });
+    sid = d.session; block = d.block; maxBlocks = d.max_blocks;
+    startedAt = Date.now();
+    clearInterval(clockTimer);
+    clockTimer = setInterval(() => { $('clock').textContent = fmt(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
+    renderTest();
+    show('test');
+  }
+
+  // ---- test
+  function renderTest() {
+    $('block-no').textContent = block.no;
+    $('item-no').textContent = block.pos + 1;
+    $('item-total').textContent = block.size;
+    $('word').textContent = block.words[block.pos];
+    $('segs').innerHTML = Array.from({ length: maxBlocks }, (_, i) => `<i class="${i < block.no - 1 ? 'done' : i === block.no - 1 ? 'now' : ''}"></i>`).join('');
+    $('dots').innerHTML = Array.from({ length: block.size }, (_, i) => `<i class="${i < block.pos ? 'done' : i === block.pos ? 'now' : ''}"></i>`).join('');
+    shownAt = Date.now();
+  }
+  async function answer(yes) {
+    if (busy || screen !== 'test') return;
+    busy = true;
+    try {
+      const d = await api(`/api/session/${sid}/answer`, { method: 'POST', body: JSON.stringify({ yes, ms: Date.now() - shownAt }) });
+      block = d.block;
+      if (d.status === 'next') renderTest();
+      else if (d.status === 'block_done') { $('done-no').textContent = block.no; $('next-no').textContent = block.no + 1; show('between'); }
+      else await finish();
+    } finally { busy = false; }
+  }
+  async function nextBlock() {
+    if (busy || screen !== 'between') return;
+    busy = true;
+    try { block = (await api(`/api/session/${sid}/next`, { method: 'POST' })).block; renderTest(); show('test'); }
+    finally { busy = false; }
+  }
+
+  // ---- result
+  async function finish() {
+    clearInterval(clockTimer);
+    const r = await api(`/api/session/${sid}/result`);
+    $('r-date').textContent = r.date;
+    $('r-level').textContent = r.level || '—';
+    $('r-cefr').textContent = r.level ? r.cefr : `below ${r.lowest_failed}`;
+    $('r-det').textContent = r.level ? (r.det_high >= 160 ? `${r.det_low}+` : `${r.det_low}–${r.det_high}`) : '—';
+    $('r-pill').className = 'pill ' + (r.reliable ? 'ok' : 'bad');
+    $('r-rel').textContent = r.reliable ? 'Reliable' : 'Unreliable — please retake';
+    $('r-meta').textContent = `${r.items} words · ${fmt(r.seconds)} · false alarms ${r.false_alarms}/${r.n_pseudo}`;
+    $('r-path').innerHTML = r.path.map((p, i) =>
+      `<span class="chip"><i style="background:${p.mastered ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${p.subband}</span><small>${p.score.toFixed(2)}</small></span>` +
+      (i < r.path.length - 1 ? '<span class="arrow">→</span>' : '')).join('');
+    $('r-pooled').innerHTML = r.pooled.map(p =>
+      `<tr><td class="mono">${p.subband}</td><td>${p.hits}/${p.n_real}</td><td>${p.false_alarms}/${p.n_pseudo}</td><td>${p.score.toFixed(2)}</td><td class="${p.mastered ? 'ok' : 'bad'}">${p.mastered ? 'mastered' : 'not yet'}</td></tr>`).join('');
+    $('r-miss-count').textContent = r.misses.length;
+    $('r-misses').innerHTML = r.misses.length
+      ? r.misses.map(m => `<div><b>${m.word}</b><span>${m.definition || ''}</span></div>`).join('')
+      : '<div class="empty">None — every real word was recognised.</div>';
+    $('btn-save').disabled = r.misses.length === 0;
+    $('btn-save').textContent = 'Save missed words to my-words.csv';
+    $('r-saved').textContent = 'Session written to vocab/tests/levels.csv and results.csv';
+    show('result');
+  }
+  async function saveMisses() {
+    const d = await api(`/api/session/${sid}/save-misses`, { method: 'POST' });
+    $('btn-save').textContent = `Saved ${d.added} to my-words.csv`;
+    $('btn-save').disabled = true;
+  }
+
+  // ---- wiring
+  $('btn-start').onclick = start;
+  $('btn-yes').onclick = () => answer(true);
+  $('btn-no').onclick = () => answer(false);
+  $('btn-continue').onclick = nextBlock;
+  $('btn-save').onclick = saveMisses;
+  $('btn-retake').onclick = () => { show('start'); init(); };
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (screen === 'test' && (k === 'y' || k === 'n')) { e.preventDefault(); answer(k === 'y'); }
+    else if (screen === 'between' && k === ' ') { e.preventDefault(); nextBlock(); }
+    else if (screen === 'start' && (k === ' ' || k === 'enter')) { e.preventDefault(); start(); }
+  });
+  init();
+})();
+</script>
+</body>
+</html>
