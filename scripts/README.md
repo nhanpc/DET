@@ -7,7 +7,11 @@ Run everything from the repo root.
 | `fetch_raw.sh` | curl, gh, unzip | the internet | `data/raw/` (see `data/raw/SOURCES.md`) |
 | `extract_raw.py` | openpyxl, pdftotext | `data/raw/` | `data/extract/*.tsv` |
 | `build_bands.py` | Python 3.10+ (stdlib) | `data/raw/nation/`, `data/extract/`, `vocab/subbands.csv` | `vocab/index.csv`, `data/dropped.txt` |
+| `build_dict.py` | Python 3.10+ (stdlib) | `vocab/index.csv`, `data/extract/oewn_*.tsv` | `vocab/senses.csv`, `vocab/relations.csv`, `definition`/`example` in `vocab/index.csv` |
 | `audit_data.py` | Python 3.10+ (stdlib) | the above | `data/AUDIT.md` |
+
+Order: `fetch_raw.sh` → `extract_raw.py` → `build_bands.py` → `extract_raw.py oewn` → `build_dict.py` → `audit_data.py`
+(the OEWN extract is sliced to the families in `index.csv`, so it runs after the bands are built).
 
 Grouping rules and the column meanings are specified in [issue #2](https://github.com/nhanpc/DET/issues/2);
 the short version:
@@ -19,3 +23,16 @@ the short version:
   spellings, inflected headwords) — best value across members wins. Blank means no source has any member.
 - `awl=1` marks Coxhead AWL families; there is no `awl` sub-band. AWL families outside Nation 1–6K are listed in
   `data/dropped.txt`.
+
+Dictionary and links are specified in [issue #3](https://github.com/nhanpc/DET/issues/3); the short version:
+
+- Source: Open English WordNet 2025 (CC BY 4.0). Text is copied verbatim; blank means OEWN has nothing.
+- `vocab/senses.csv` — `family, sense, pos, definition, example, synset`. At most 3 senses per family, in OEWN
+  order, the family's `pos` first. Sense 1 fills `definition`/`example` in `index.csv`.
+- Lookup: headword → Capitalised headword (nouns: *Friday*) → OEWN inflected form (*media → medium*) → headword
+  minus a regular inflection (*patients*, *presented*) → first member with the same part of speech.
+- `vocab/relations.csv` — `family, relation, target, sense`. `synonym` = same synset, `antonym` = OEWN antonym,
+  `similar` = OEWN similar-to. Both ends are families in `index.csv`; synonym/antonym are stored in both
+  directions; `sense` is blank when the link belongs to a sense beyond the three kept.
+- Targets that are only a family member (not a headword) are accepted only if that family has a kept sense with
+  the same part of speech (so *big* is not linked to *mountain* via *mountainous*).

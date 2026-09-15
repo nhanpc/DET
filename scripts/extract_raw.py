@@ -12,16 +12,22 @@ Outputs (all UTF-8, tab-separated, header row):
   data/extract/prevalence.tsv        word, pknown, prevalence, nobs
   data/extract/oxford_cefr.tsv       word, pos, cefr, cefr_all, list
   data/extract/nation_pdf_headwords.tsv  band, headword   (official PDFs, for verification)
+  data/extract/oewn_senses.tsv       lemma, pos, sense_no, synset, definition, example
+  data/extract/oewn_relations.tsv    lemma, pos, sense_no, relation, target
+  data/extract/oewn_forms.tsv        form, lemma   (inflected forms OEWN lists, e.g. media -> medium)
+    (Open English WordNet, only lemmas that are a family headword or member in vocab/index.csv)
 """
 from __future__ import annotations
 
 import csv
+import gzip
 import html
 import re
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
@@ -177,9 +183,77 @@ def extract_nation_pdf():
     write_tsv(OUT / "nation_pdf_headwords.tsv", ["band", "headword"], rows)
 
 
+# ---------------------------------------------------------------- Open English WordNet
+OEWN_POS = {"n": "n", "v": "v", "a": "adj", "s": "adj", "r": "adv"}
+
+
+def extract_oewn():
+    """Slice OEWN down to our families: one row per sense, one row per synonym/antonym/similar link.
+
+    Sense order inside a lemma+pos is the document order of <Sense> elements (WordNet sense
+    order, most frequent first). Relation targets are written as lemmas, so links that point
+    outside the 6,000 families are still visible to the audit.
+    """
+    wanted = set()
+    with (ROOT / "vocab" / "index.csv").open(encoding="utf-8", newline="") as f:
+        for r in csv.DictReader(f):
+            wanted.add(r["family"])
+            wanted.update(m for m in r["members"].split("|") if m)
+    wanted |= {w.capitalize() for w in wanted}       # Friday, January, Christmas
+
+    entries: dict[str, tuple[str, str, list[str]]] = {}      # entry id -> (lemma, pos, [sense id])
+    forms: set[tuple[str, str]] = set()                        # (inflected form, lemma) for wanted forms
+    senses: dict[str, tuple[str, str, int, str, list[str]]] = {}  # sense id -> (lemma, pos, sense_no, synset, [antonym sense id])
+    synsets: dict[str, tuple[str, str, list[str], list[str]]] = {}  # synset id -> (definition, example, [member entry id], [similar synset id])
+
+    with gzip.open(RAW / "oewn" / "english-wordnet-2025.xml.gz", "rb") as fh:
+        for _, el in ET.iterparse(fh):
+            if el.tag == "LexicalEntry":
+                lemma_el = el.find("Lemma")
+                lemma, pos = lemma_el.get("writtenForm"), lemma_el.get("partOfSpeech")
+                ids = []
+                for i, s in enumerate(el.findall("Sense"), start=1):
+                    ants = [r.get("target") for r in s.findall("SenseRelation") if r.get("relType") == "antonym"]
+                    senses[s.get("id")] = (lemma, pos, i, s.get("synset"), ants)
+                    ids.append(s.get("id"))
+                entries[el.get("id")] = (lemma, pos, ids)
+                forms.update((f.get("writtenForm"), lemma) for f in el.findall("Form") if f.get("writtenForm") in wanted)
+                el.clear()
+            elif el.tag == "Synset":
+                d = el.find("Definition")
+                ex = el.find("Example")
+                sim = [r.get("target") for r in el.findall("SynsetRelation") if r.get("relType") == "similar"]
+                synsets[el.get("id")] = ((d.text or "").strip() if d is not None else "",
+                                         (ex.text or "").strip() if ex is not None else "",
+                                         el.get("members", "").split(), sim)
+                el.clear()
+
+    sense_rows, rel_rows = [], []
+    for sid, (lemma, pos, n, syn, ants) in senses.items():
+        if lemma not in wanted or pos not in OEWN_POS:
+            continue
+        definition, example, members, similar = synsets[syn]
+        tag = OEWN_POS[pos]
+        sense_rows.append((lemma, tag, n, syn, definition, example))
+        for eid in members:
+            other = entries[eid][0]
+            if other != lemma:
+                rel_rows.append((lemma, tag, n, "synonym", other))
+        for tid in ants:
+            rel_rows.append((lemma, tag, n, "antonym", senses[tid][0]))
+        for ts in similar:
+            for eid in synsets[ts][2]:
+                rel_rows.append((lemma, tag, n, "similar", entries[eid][0]))
+    sense_rows.sort(key=lambda r: (r[0], r[1], r[2]))
+    rel_rows.sort(key=lambda r: (r[0], r[1], r[2], r[3], r[4]))
+    write_tsv(OUT / "oewn_senses.tsv", ["lemma", "pos", "sense_no", "synset", "definition", "example"], sense_rows)
+    write_tsv(OUT / "oewn_relations.tsv", ["lemma", "pos", "sense_no", "relation", "target"], rel_rows)
+    write_tsv(OUT / "oewn_forms.tsv", ["form", "lemma"], sorted(forms))
+
+
 if __name__ == "__main__":
     steps = {"awl": extract_awl, "subtlex": extract_subtlex, "prevalence": extract_prevalence,
-             "oxford": extract_oxford, "nation_pdf": extract_nation_pdf}
+             "oxford": extract_oxford, "nation_pdf": extract_nation_pdf, "oewn": extract_oewn}
     wanted = sys.argv[1:] or list(steps)
     for name in wanted:
         print(f"== {name}")

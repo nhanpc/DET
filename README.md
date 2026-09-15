@@ -99,14 +99,16 @@ DET/
 │   ├── extract/                 # slim TSV extracts the build reads (regenerated, not committed)
 │   └── AUDIT.md                 # data audit: coverage, gradient, mirror check
 ├── vocab/
-│   ├── index.csv                # one row per word family: sub-band, rank, zipf, cefr, members …
+│   ├── index.csv                # one row per word family: sub-band, rank, zipf, cefr, members, definition …
 │   ├── subbands.csv             # cut table: rank range, CEFR label, DET range per sub-band
+│   ├── senses.csv               # dictionary: up to 3 senses per family (definition, example) from Open English WordNet
+│   ├── relations.csv            # synonym / antonym / similar links between families
 │   ├── my-words.csv             # words met in practice
 │   ├── decks/                   # Anki exports (one card per family)
 │   ├── tests/                   # generated yes/no tests + results
 │   └── progress.md              # % known per sub-band → estimated level
 ├── practice/                    # per-task drills (speaking, writing, dictation)
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, audit_data.py
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, audit_data.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

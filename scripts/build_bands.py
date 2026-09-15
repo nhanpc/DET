@@ -2,7 +2,7 @@
 """Build the vocabulary index (one row per word family, with its sub-band).
 
 Reads   data/raw/nation/basewrd1-6.txt, data/extract/*.tsv, vocab/subbands.csv
-Writes  vocab/index.csv, data/dropped.txt
+Writes  vocab/index.csv (definition/example kept from build_dict.py), data/dropped.txt
 
 Standard library only. Deterministic: the same inputs give byte-identical outputs.
 Grouping rules are specified in GitHub issue nhanpc/DET#2.
@@ -182,11 +182,15 @@ def build() -> int:
     if errors:
         return 1
 
-    # write
+    # write; definition/example are filled by build_dict.py, so carry them over if present
+    index_path = VOCAB / "index.csv"
+    dict_cols = {r["family"]: (r["definition"], r["example"]) for r in read_csv(index_path)} if index_path.exists() else {}
+
     def row_of(f: dict, cols: list[str]) -> list:
+        definition, example = dict_cols.get(f["family"], ("", ""))
         d = {"family": f["family"], "subband": f["subband"], "rank": f["rank"] or "", "pos_in_band": f["pos_in_band"],
              "zipf": f["zipf"], "prevalence": f["prevalence"], "cefr": f["cefr"], "gse": f["gse"], "awl": f["awl"],
-             "pos": f["pos"], "members": "|".join(f["members"]), "definition": "", "example": ""}
+             "pos": f["pos"], "members": "|".join(f["members"]), "definition": definition, "example": example}
         return [d[c] for c in cols]
 
     ordered = [f for name in band_order for f in groups.get(name, [])]

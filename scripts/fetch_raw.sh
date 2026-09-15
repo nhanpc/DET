@@ -38,4 +38,8 @@ for f in The_Oxford_3000 The_Oxford_5000; do
     "https://www.oxfordlearnersdictionaries.com/external/pdf/wordlists/oxford-3000-5000/$f.pdf"
 done
 
+echo "== Open English WordNet (LMF XML)"
+mkdir -p "$RAW/oewn"
+gh release download 2025-edition -R globalwordnet/english-wordnet -p 'english-wordnet-2025.xml.gz' -D "$RAW/oewn" --clobber
+
 echo "done. Now run: python3 scripts/extract_raw.py"

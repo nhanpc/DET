@@ -42,6 +42,10 @@ def main() -> None:
     oxford = read(EXTRACT / "oxford_cefr.tsv", "\t")
     awl = read(EXTRACT / "awl_families.tsv", "\t")
     pdf = read(EXTRACT / "nation_pdf_headwords.tsv", "\t")
+    oewn_senses = read(EXTRACT / "oewn_senses.tsv", "\t")
+    oewn_rels = read(EXTRACT / "oewn_relations.tsv", "\t")
+    senses = read(VOCAB / "senses.csv", ",") if (VOCAB / "senses.csv").exists() else []
+    relations = read(VOCAB / "relations.csv", ",") if (VOCAB / "relations.csv").exists() else []
     zipf_by = {r["word"]: r for r in zipf}
     prev_by = {r["word"]: r for r in prev}
     md: list[str] = ["# Data audit", ""]
@@ -55,7 +59,8 @@ def main() -> None:
          ["SUBTLEX-US (Zipf + PoS)", "data/extract/subtlex_zipf.tsv", f"{len(zipf):,} words", "zipf, pos fallback"],
          ["Brysbaert 2019 prevalence", "data/extract/prevalence.tsv", f"{len(prev):,} lemmas", "prevalence (Pknown)"],
          ["Oxford 3000/5000", "data/extract/oxford_cefr.tsv", f"{len(oxford):,} words", "cefr, pos"],
-         ["Pearson GSE", "-", "0", "not obtainable without licence; column left blank"]]), ""]
+         ["Pearson GSE", "-", "0", "not obtainable without licence; column left blank"],
+         ["Open English WordNet 2025", "data/extract/oewn_senses.tsv, oewn_relations.tsv", f"{len(oewn_senses):,} senses, {len(oewn_rels):,} links", "definition, example, synonym/antonym/similar links"]]), ""]
 
     # 2. mirror vs official pdf
     md += ["## 2. Nation mirror vs official headword PDFs", "",
@@ -115,8 +120,8 @@ def main() -> None:
     n = tot["n"]
     rows.append(["**all**", n, pct(tot["zipf"], n), pct(tot["zipf_fb"], n), pct(tot["prev"], n), pct(tot["prev_fb"], n), pct(tot["cefr"], n), pct(tot["pos"], n)])
     md += [table(["subband", "rows", "zipf", "zipf +members", "prevalence", "prevalence +members", "cefr", "pos"], rows), "",
-           "`+members` = coverage if a missing headword falls back to any family member (e.g. British *privatise* -> member *privatize*). "
-           "Not applied in the build yet; listed to show the gain.", ""]
+           "`+members` = coverage if a missing headword falls back to any family member (e.g. British *privatise* -> member *privatize*); "
+           "the build applies this fallback.", ""]
 
     # 5. cefr cross-tab
     md += ["## 5. Oxford CEFR tag by sub-band", ""]
@@ -160,6 +165,46 @@ def main() -> None:
     md += ["## 9. Dropped entries", "",
            f"{len(dropped)} entries in `data/dropped.txt` (`bandN` = failed the `^[a-z][a-z'-]*$` filter, "
            "`awl` = AWL family not in Nation 1-6K)" + (": " + ", ".join(d.replace("\t", " ") for d in dropped) if dropped else "."), ""]
+
+    # 10. dictionary and links (build_dict.py)
+    md += ["## 10. Dictionary and links per sub-band (Open English WordNet)", ""]
+    if senses:
+        has_sense = defaultdict(set)
+        has_ex = defaultdict(set)
+        for r in senses:
+            has_sense[r["family"]].add(r["sense"])
+            if r["example"]:
+                has_ex[r["family"]].add(r["sense"])
+        has_rel = defaultdict(lambda: defaultdict(set))
+        for r in relations:
+            has_rel[r["relation"]][r["family"]].add(r["target"])
+        rows, tot = [], Counter()
+        for name in order:
+            g = groups[name]
+            n = len(g)
+            c = Counter(sense=sum(1 for r in g if r["family"] in has_sense),
+                        example=sum(1 for r in g if r["family"] in has_ex),
+                        synonym=sum(1 for r in g if r["family"] in has_rel["synonym"]),
+                        antonym=sum(1 for r in g if r["family"] in has_rel["antonym"]),
+                        similar=sum(1 for r in g if r["family"] in has_rel["similar"]))
+            tot.update(c)
+            tot["n"] += n
+            rows.append([name, n, pct(c["sense"], n), pct(c["example"], n), pct(c["synonym"], n), pct(c["antonym"], n), pct(c["similar"], n)])
+        n = tot["n"]
+        rows.append(["**all**", n, pct(tot["sense"], n), pct(tot["example"], n), pct(tot["synonym"], n), pct(tot["antonym"], n), pct(tot["similar"], n)])
+        md += [table(["subband", "rows", "≥1 sense", "≥1 example", "≥1 synonym", "≥1 antonym", "≥1 similar"], rows), ""]
+        no_entry = sorted(r["family"] for r in index if r["family"] not in has_sense)
+        in_index = {r["family"] for r in index} | {m for r in index for m in r["members"].split("|") if m}
+        outside = Counter(r["target"] for r in oewn_rels if r["lemma"] in {x["family"] for x in index} and r["target"] not in in_index)
+        by_rel = Counter(r["relation"] for r in relations)
+        md += [f"{len(senses):,} senses (≤3 per family), {len(relations):,} links "
+               f"({', '.join(f'{k} {v:,}' for k, v in sorted(by_rel.items()))}). "
+               f"Synonym and antonym links are stored in both directions.", "",
+               f"{len(no_entry)} families have no OEWN entry (headword or member): " + ", ".join(no_entry) + ".", "",
+               f"Link targets outside Nation 1-6K (dropped): {len(outside):,} distinct lemmas, most frequent: "
+               + ", ".join(f"{w} ({c})" for w, c in outside.most_common(20)) + ".", ""]
+    else:
+        md += ["`vocab/senses.csv` not built yet — run `python3 scripts/build_dict.py`.", ""]
 
     text = "\n".join(md)
     (ROOT / "data" / "AUDIT.md").write_text(text + "\n", encoding="utf-8")

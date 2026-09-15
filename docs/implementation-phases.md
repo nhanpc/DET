@@ -53,14 +53,17 @@ Steps:
    family, subband, rank, pos_in_band, zipf, prevalence, cefr, gse, awl, pos, members, definition, example
    ```
 
-   `definition` and `example` stay empty at first; they are filled in
-   Phase 3. To study one level, filter on `subband`.
+   `definition` and `example` are filled by `scripts/build_dict.py` (issue
+   #3), which also writes `vocab/senses.csv` (up to 3 senses per family) and
+   `vocab/relations.csv` (synonym / antonym / similar links between
+   families) from Open English WordNet. To study one level, filter on
+   `subband`.
 3. `scripts/audit_data.py` writes `data/AUDIT.md` (coverage, difficulty
    gradient, mirror check).
 4. `vocab/my-words.csv` — same columns, empty, for words met in practice.
 
-Output: `vocab/index.csv`, ~6,000 rows. Status: done (issue #1); grouping
-refinements tracked in issue #2.
+Output: `vocab/index.csv`, 6,000 rows, plus `senses.csv` and
+`relations.csv`. Status: done (issues #1, #2, #3).
 
 ## Phase 2 — Yes/No level test
 
@@ -83,8 +86,8 @@ Output: a level estimate in ~10 minutes, repeatable weekly.
 
 Goal: learn the current sub-band as word families.
 
-1. Fill `definition`, `example`, and `family` for the current sub-band
-   (dictionary API or manual; short, simple English).
+1. `definition` and `example` already come from `build_dict.py`; optionally
+   simplify them by hand for the current sub-band (short, simple English).
 2. `scripts/export_anki.py <subband>` → `vocab/decks/<subband>.txt`, one card
    per family: front = base word, back = family forms + definition + example.
 3. Daily: 15–20 new families + Anki review. One sub-band ≈ 500 families ≈

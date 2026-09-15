@@ -11,6 +11,7 @@
 | Brysbaert 2019 prevalence | data/extract/prevalence.tsv | 61,855 lemmas | prevalence (Pknown) |
 | Oxford 3000/5000 | data/extract/oxford_cefr.tsv | 4,952 words | cefr, pos |
 | Pearson GSE | - | 0 | not obtainable without licence; column left blank |
+| Open English WordNet 2025 | data/extract/oewn_senses.tsv, oewn_relations.tsv | 53,207 senses, 122,578 links | definition, example, synonym/antonym/similar links |
 
 ## 2. Nation mirror vs official headword PDFs
 
@@ -56,7 +57,7 @@ Headwords inside each file are alphabetical (plus a few hand-placed words at the
 | 6k-b | 500 | 100% | 100% | 100% | 100% | 3% | 100% |
 | **all** | 6000 | 100% | 100% | 100% | 100% | 61% | 100% |
 
-`+members` = coverage if a missing headword falls back to any family member (e.g. British *privatise* -> member *privatize*). Not applied in the build yet; listed to show the gain.
+`+members` = coverage if a missing headword falls back to any family member (e.g. British *privatise* -> member *privatize*); the build applies this fallback.
 
 ## 5. Oxford CEFR tag by sub-band
 
@@ -130,4 +131,28 @@ Zipf: 1-2 rare, 3-4 mid, 5-7 very common (SUBTLEX-US, film subtitles). Prevalenc
 ## 9. Dropped entries
 
 7 entries in `data/dropped.txt` (`bandN` = failed the `^[a-z][a-z'-]*$` filter, `awl` = AWL family not in Nation 1-6K): awl administrate, awl deduce, awl negate, awl append, awl widespread, awl ethic, awl so-called
+
+## 10. Dictionary and links per sub-band (Open English WordNet)
+
+| subband | rows | ≥1 sense | ≥1 example | ≥1 synonym | ≥1 antonym | ≥1 similar |
+|---|---|---|---|---|---|---|
+| 1k-a | 500 | 93% | 87% | 78% | 33% | 33% |
+| 1k-b | 500 | 99% | 85% | 78% | 21% | 28% |
+| 2k-a | 500 | 99% | 88% | 81% | 17% | 26% |
+| 2k-b | 500 | 100% | 73% | 75% | 8% | 17% |
+| 3k-a | 500 | 100% | 84% | 79% | 14% | 23% |
+| 3k-b | 500 | 100% | 80% | 72% | 9% | 21% |
+| 4k-a | 500 | 100% | 69% | 66% | 10% | 20% |
+| 4k-b | 500 | 99% | 67% | 61% | 5% | 12% |
+| 5k-a | 500 | 100% | 63% | 64% | 6% | 18% |
+| 5k-b | 500 | 100% | 67% | 59% | 4% | 15% |
+| 6k-a | 500 | 99% | 66% | 57% | 3% | 18% |
+| 6k-b | 500 | 99% | 64% | 57% | 3% | 14% |
+| **all** | 6000 | 99% | 74% | 69% | 11% | 21% |
+
+15,180 senses (≤3 per family), 17,956 links (antonym 816, similar 3,362, synonym 13,778). Synonym and antonym links are stored in both directions.
+
+62 families have no OEWN entry (headword or member): against, al, albeit, alps, although, amid, among, and, aye, barracks, because, beside, bobbed, could, during, et, for, from, how, ibid, if, into, ipad, it, lo, mega, nor, of, or, oscar, ought, per, shall, she, should, since, sued, than, that, the, they, this, to, toward, unless, until, upon, versus, via, we, what, when, whereas, whereby, whether, which, who, wifi, with, without, would, you.
+
+Link targets outside Nation 1-6K (dropped): 16,444 distinct lemmas, most frequent: find out (34), take in (32), make out (28), break up (28), give up (26), set up (26), wad (26), chromatic (24), take out (24), put up (23), give way (22), bear on (21), bring up (21), slew (21), take on (20), break down (20), uprise (20), turn down (20), vex (19), see to it (19).
 
