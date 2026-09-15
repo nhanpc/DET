@@ -57,12 +57,15 @@ with a yes/no test (the same format as DET *Read and Select*).
 | Sub-band | Rank | ≈ CEFR | ≈ DET |
 |----------|------|--------|-------|
 | 1K-a / 1K-b | 1–500 / 501–1000 | A1 | 10–30 |
-| 2K-a / 2K-b | 1001–1500 / 1501–2000 | A2 | 35–55 |
+| 2K-a / 2K-b | 1001–1500 / 1501–2000 | A2–B1 | 35–55 |
 | 3K-a / 3K-b | 2001–2500 / 2501–3000 | B1 | 60–85 |
 | 4K-a / 4K-b | 3001–3500 / 3501–4000 | B2 | 90–105 |
 | 5K-a / 5K-b | 4001–4500 / 4501–5000 | B2+ | 105–115 |
 | **6K-a / 6K-b** | 5001–5500 / 5501–6000 | **C1** | **120+** |
-| AWL | 570 academic families | B2–C1 | needed for 120 |
+
+`vocab/subbands.csv` is the source of truth for these cuts. Coxhead AWL families
+(563 of 570 sit inside Nation 1–6K) are flagged `awl=1` rather than kept as a
+separate sub-band.
 
 Extra per-word difficulty numbers are stored so the lists can be re-cut later:
 

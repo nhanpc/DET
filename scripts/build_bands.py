@@ -97,30 +97,37 @@ def build() -> int:
     by_head = {f["family"]: f for f in families}
     member_owner = {m: f for f in families for m in f["members"]}
 
-    # AWL: already-ranked families get awl=1; the rest form the `awl` sub-band
+    # AWL is a tag, not a sub-band: families in Nation 1-6K get awl=1, the rest are dropped
     for f in families:
         f["awl"] = 0
-    awl_new = 0
+    awl_hit = 0
     for row in read_tsv(EXTRACT / "awl_families.tsv"):
         hw = row["headword"]
-        members = [m for m in row["members"].split("|") if m]
         owner = by_head.get(hw) or member_owner.get(hw)
         if owner is not None:
             owner["awl"] = 1
-        elif WORD_RE.match(hw):
-            families.append({"family": hw, "count": 0, "band": None, "rank": None, "members": members, "awl": 1})
-            awl_new += 1
+            awl_hit += 1
         else:
             dropped.append(f"awl\t{hw}")
 
-    # difficulty columns, joined on the headword only
+    # difficulty columns: join on the headword, else fall back to the family members
+    # (British spellings, inflected headwords). Best value across members wins.
     zipf = {r["word"]: r for r in read_tsv(EXTRACT / "subtlex_zipf.tsv")}
     prev = {r["word"]: r for r in read_tsv(EXTRACT / "prevalence.tsv")}
     oxford = {r["word"]: r for r in read_tsv(EXTRACT / "oxford_cefr.tsv")}
+    CEFR_ORDER = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
+
+    def lookup(table: dict, f: dict, best):
+        hit = table.get(f["family"])
+        if hit is not None:
+            return hit
+        hits = [table[m] for m in f["members"] if m in table]
+        return min(hits, key=best) if hits else None
 
     for f in families:
-        w = f["family"]
-        z, p, o = zipf.get(w), prev.get(w), oxford.get(w)
+        z = lookup(zipf, f, lambda r: -float(r["zipf"]))
+        p = lookup(prev, f, lambda r: -float(r["pknown"]))
+        o = lookup(oxford, f, lambda r: CEFR_ORDER.get(r["cefr"], 9))
         f["zipf"] = z["zipf"] if z else ""
         f["prevalence"] = p["pknown"] if p else ""
         f["cefr"] = o["cefr"] if o else ""
@@ -131,7 +138,7 @@ def build() -> int:
             f["pos"] = SUBTLEX_POS[z["dom_pos"]]
         else:
             f["pos"] = ""
-        f["subband"] = subband_for(f["rank"]) if f["rank"] else "awl"
+        f["subband"] = subband_for(f["rank"])
 
     # order inside each sub-band: zipf desc, prevalence desc, headword asc (blanks last)
     groups: dict[str, list[dict]] = defaultdict(list)
@@ -150,8 +157,6 @@ def build() -> int:
         n = len(groups.get(name, []))
         if n != hi - lo + 1:
             errors.append(f"{name}: expected {hi - lo + 1} rows, got {n}")
-    if len(groups.get("awl", [])) > 570:
-        errors.append(f"awl: {len(groups['awl'])} rows > 570")
     dup = [w for w, c in Counter(f["family"] for f in families).items() if c > 1]
     if dup:
         errors.append(f"duplicate headwords: {dup[:10]}{'...' if len(dup) > 10 else ''}")
@@ -191,7 +196,7 @@ def build() -> int:
         w.writerows(row_of(f, INDEX_COLS) for f in ordered)
     (ROOT / "data" / "dropped.txt").write_text("\n".join(dropped) + ("\n" if dropped else ""), encoding="utf-8")
 
-    print(f"families: {len(families)}  (nation 1-6k: {len(families) - awl_new}, awl-only: {awl_new})")
+    print(f"families: {len(families)}  (awl=1: {awl_hit} of 570; AWL families outside Nation 1-6K are in data/dropped.txt)")
     print(f"dropped: {len(dropped)}  -> data/dropped.txt")
     for name in band_order:
         rows = groups.get(name, [])

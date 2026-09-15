@@ -51,7 +51,7 @@ def main() -> None:
         ["source", "file", "rows", "used for"],
         [["Nation BNC/COCA 1-6K", "data/raw/nation/basewrd1-6.txt", "6,000 families", "family, rank, members"],
          ["Nation official headword PDFs", "data/raw/nation/official-pdf/*.pdf", f"{len(pdf):,} headwords", "verification of the mirror only"],
-         ["Coxhead AWL", "data/extract/awl_families.tsv", f"{len(awl)} families", "awl flag, awl sub-band"],
+         ["Coxhead AWL", "data/extract/awl_families.tsv", f"{len(awl)} families", "awl flag"],
          ["SUBTLEX-US (Zipf + PoS)", "data/extract/subtlex_zipf.tsv", f"{len(zipf):,} words", "zipf, pos fallback"],
          ["Brysbaert 2019 prevalence", "data/extract/prevalence.tsv", f"{len(prev):,} lemmas", "prevalence (Pknown)"],
          ["Oxford 3000/5000", "data/extract/oxford_cefr.tsv", f"{len(oxford):,} words", "cefr, pos"],
@@ -144,8 +144,7 @@ def main() -> None:
     c = Counter(r["subband"] for r in index if r["awl"] == "1")
     rows = [[name, c[name]] for name in order if c[name]]
     md += [table(["subband", "AWL families"], rows), "",
-           f"{sum(c.values()) - c['awl']} of 570 AWL families are already inside Nation 1-6K; only {c['awl']} are AWL-only: "
-           + ", ".join(r["family"] for r in groups["awl"]) + ".", ""]
+           f"{sum(c.values())} of 570 AWL families are inside Nation 1-6K and flagged awl=1; the rest are in data/dropped.txt.", ""]
 
     # 8. Oxford not in nation
     ox_words = {r["word"] for r in oxford}
@@ -158,7 +157,9 @@ def main() -> None:
 
     # 9. dropped
     dropped = (ROOT / "data" / "dropped.txt").read_text(encoding="utf-8").splitlines() if (ROOT / "data" / "dropped.txt").exists() else []
-    md += ["## 9. Dropped entries", "", f"{len(dropped)} entries failed the `^[a-z][a-z'-]*$` filter" + (": " + ", ".join(dropped) if dropped else "."), ""]
+    md += ["## 9. Dropped entries", "",
+           f"{len(dropped)} entries in `data/dropped.txt` (`bandN` = failed the `^[a-z][a-z'-]*$` filter, "
+           "`awl` = AWL family not in Nation 1-6K)" + (": " + ", ".join(d.replace("\t", " ") for d in dropped) if dropped else "."), ""]
 
     text = "\n".join(md)
     (ROOT / "data" / "AUDIT.md").write_text(text + "\n", encoding="utf-8")

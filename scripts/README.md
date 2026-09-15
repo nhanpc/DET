@@ -15,5 +15,7 @@ the short version:
 - `vocab/subbands.csv` is the source of truth for the sub-band cuts (rank ranges, CEFR, DET range, mastery %).
 - `rank` = Nation's 1000-band × family frequency count inside the band. `pos_in_band` = order inside the sub-band
   by `zipf` desc, `prevalence` desc, headword asc.
-- `zipf`, `prevalence`, `cefr`, `pos` are joined on the headword only; blank means the source has no entry.
-- `awl=1` marks Coxhead AWL families wherever they land; the `awl` sub-band holds only the ones outside Nation 1–6K.
+- `zipf`, `prevalence`, `cefr`, `pos` are joined on the headword, falling back to the family members (British
+  spellings, inflected headwords) — best value across members wins. Blank means no source has any member.
+- `awl=1` marks Coxhead AWL families; there is no `awl` sub-band. AWL families outside Nation 1–6K are listed in
+  `data/dropped.txt`.

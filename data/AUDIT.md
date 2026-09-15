@@ -6,7 +6,7 @@
 |---|---|---|---|
 | Nation BNC/COCA 1-6K | data/raw/nation/basewrd1-6.txt | 6,000 families | family, rank, members |
 | Nation official headword PDFs | data/raw/nation/official-pdf/*.pdf | 6,003 headwords | verification of the mirror only |
-| Coxhead AWL | data/extract/awl_families.tsv | 570 families | awl flag, awl sub-band |
+| Coxhead AWL | data/extract/awl_families.tsv | 570 families | awl flag |
 | SUBTLEX-US (Zipf + PoS) | data/extract/subtlex_zipf.tsv | 74,286 words | zipf, pos fallback |
 | Brysbaert 2019 prevalence | data/extract/prevalence.tsv | 61,855 lemmas | prevalence (Pknown) |
 | Oxford 3000/5000 | data/extract/oxford_cefr.tsv | 4,952 words | cefr, pos |
@@ -42,20 +42,19 @@ Headwords inside each file are alphabetical (plus a few hand-placed words at the
 
 | subband | rows | zipf | zipf +members | prevalence | prevalence +members | cefr | pos |
 |---|---|---|---|---|---|---|---|
-| 1k-a | 500 | 100% | 100% | 99% | 100% | 99% | 100% |
-| 1k-b | 500 | 100% | 100% | 98% | 100% | 96% | 100% |
-| 2k-a | 500 | 100% | 100% | 99% | 100% | 98% | 100% |
-| 2k-b | 500 | 100% | 100% | 99% | 100% | 82% | 100% |
-| 3k-a | 500 | 100% | 100% | 99% | 100% | 96% | 100% |
-| 3k-b | 500 | 100% | 100% | 97% | 100% | 87% | 100% |
-| 4k-a | 500 | 99% | 100% | 98% | 100% | 63% | 99% |
-| 4k-b | 500 | 100% | 100% | 97% | 100% | 49% | 99% |
-| 5k-a | 500 | 100% | 100% | 99% | 100% | 19% | 100% |
-| 5k-b | 500 | 100% | 100% | 98% | 99% | 12% | 100% |
-| 6k-a | 500 | 99% | 100% | 98% | 99% | 2% | 99% |
-| 6k-b | 500 | 99% | 100% | 98% | 100% | 3% | 99% |
-| awl | 7 | 71% | 86% | 86% | 86% | 43% | 86% |
-| **all** | 6007 | 100% | 100% | 98% | 100% | 59% | 100% |
+| 1k-a | 500 | 100% | 100% | 100% | 100% | 99% | 100% |
+| 1k-b | 500 | 100% | 100% | 100% | 100% | 98% | 100% |
+| 2k-a | 500 | 100% | 100% | 100% | 100% | 100% | 100% |
+| 2k-b | 500 | 100% | 100% | 100% | 100% | 85% | 100% |
+| 3k-a | 500 | 100% | 100% | 100% | 100% | 98% | 100% |
+| 3k-b | 500 | 100% | 100% | 100% | 100% | 94% | 100% |
+| 4k-a | 500 | 100% | 100% | 100% | 100% | 66% | 100% |
+| 4k-b | 500 | 100% | 100% | 100% | 100% | 52% | 100% |
+| 5k-a | 500 | 100% | 100% | 100% | 100% | 19% | 100% |
+| 5k-b | 500 | 100% | 100% | 99% | 99% | 13% | 100% |
+| 6k-a | 500 | 100% | 100% | 99% | 99% | 2% | 100% |
+| 6k-b | 500 | 100% | 100% | 100% | 100% | 3% | 100% |
+| **all** | 6000 | 100% | 100% | 100% | 100% | 61% | 100% |
 
 `+members` = coverage if a missing headword falls back to any family member (e.g. British *privatise* -> member *privatize*). Not applied in the build yet; listed to show the gain.
 
@@ -63,19 +62,18 @@ Headwords inside each file are alphabetical (plus a few hand-placed words at the
 
 | subband | A1 | A2 | B1 | B2 | C1 | untagged | A1+A2 (1-2k) / B2+C1 (3k+) of tagged |
 |---|---|---|---|---|---|---|---|
-| 1k-a | 374 | 99 | 17 | 6 | 0 | 4 | 95% |
-| 1k-b | 223 | 164 | 63 | 28 | 2 | 20 | 81% |
-| 2k-a | 80 | 146 | 136 | 120 | 10 | 8 | 46% |
-| 2k-b | 58 | 76 | 85 | 135 | 56 | 90 | 33% |
-| 3k-a | 10 | 68 | 77 | 256 | 70 | 19 | 68% |
-| 3k-b | 7 | 25 | 46 | 169 | 190 | 63 | 82% |
-| 4k-a | 3 | 10 | 17 | 77 | 207 | 186 | 90% |
-| 4k-b | 4 | 11 | 14 | 61 | 155 | 255 | 88% |
-| 5k-a | 2 | 5 | 1 | 15 | 72 | 405 | 92% |
-| 5k-b | 2 | 3 | 2 | 12 | 43 | 438 | 89% |
-| 6k-a | 1 | 0 | 2 | 4 | 2 | 491 | 67% |
-| 6k-b | 0 | 0 | 0 | 5 | 9 | 486 | 100% |
-| awl | 0 | 0 | 0 | 3 | 0 | 4 | 100% |
+| 1k-a | 374 | 100 | 17 | 6 | 0 | 3 | 95% |
+| 1k-b | 226 | 167 | 65 | 29 | 2 | 11 | 80% |
+| 2k-a | 80 | 148 | 137 | 122 | 11 | 2 | 46% |
+| 2k-b | 59 | 80 | 87 | 139 | 58 | 77 | 33% |
+| 3k-a | 10 | 68 | 78 | 263 | 73 | 8 | 68% |
+| 3k-b | 7 | 25 | 48 | 180 | 211 | 29 | 83% |
+| 4k-a | 3 | 10 | 18 | 79 | 218 | 172 | 91% |
+| 4k-b | 4 | 11 | 14 | 64 | 168 | 239 | 89% |
+| 5k-a | 2 | 5 | 1 | 16 | 73 | 403 | 92% |
+| 5k-b | 3 | 4 | 2 | 13 | 45 | 433 | 87% |
+| 6k-a | 1 | 0 | 2 | 4 | 3 | 490 | 70% |
+| 6k-b | 0 | 0 | 0 | 7 | 10 | 483 | 100% |
 
 Oxford covers ~5,000 words, so most 5k-6k rows are untagged; the last column is computed over tagged rows only.
 
@@ -83,19 +81,18 @@ Oxford covers ~5,000 words, so most 5k-6k rows are untagged; the last column is 
 
 | subband | zipf min | zipf median | zipf max | prevalence median | prevalence < 0.90 |
 |---|---|---|---|---|---|
-| 1k-a | 3.09 | 5.36 | 7.62 | 0.996 | 0 |
+| 1k-a | 3.09 | 5.36 | 7.62 | 0.996 | 1 |
 | 1k-b | 3.03 | 4.80 | 6.07 | 0.997 | 1 |
 | 2k-a | 2.47 | 4.30 | 5.32 | 0.996 | 1 |
-| 2k-b | 2.07 | 4.20 | 5.48 | 0.995 | 0 |
+| 2k-b | 2.07 | 4.20 | 5.48 | 0.995 | 1 |
 | 3k-a | 1.99 | 3.80 | 4.84 | 0.995 | 2 |
 | 3k-b | 1.77 | 3.72 | 5.45 | 0.995 | 1 |
-| 4k-a | 1.77 | 3.53 | 5.02 | 0.995 | 0 |
-| 4k-b | 1.77 | 3.57 | 4.79 | 0.995 | 2 |
-| 5k-a | 1.59 | 3.39 | 4.99 | 0.992 | 7 |
-| 5k-b | 1.59 | 3.35 | 5.35 | 0.992 | 4 |
-| 6k-a | 1.59 | 3.13 | 5.02 | 0.988 | 16 |
-| 6k-b | 1.59 | 3.10 | 5.13 | 0.990 | 19 |
-| awl | 1.77 | 2.77 | 3.02 | 0.975 | 0 |
+| 4k-a | 1.77 | 3.53 | 5.02 | 0.995 | 3 |
+| 4k-b | 1.77 | 3.57 | 4.79 | 0.995 | 3 |
+| 5k-a | 1.59 | 3.39 | 4.99 | 0.992 | 10 |
+| 5k-b | 1.59 | 3.35 | 5.35 | 0.992 | 5 |
+| 6k-a | 1.59 | 3.12 | 5.02 | 0.988 | 18 |
+| 6k-b | 1.59 | 3.08 | 5.13 | 0.989 | 21 |
 
 Zipf: 1-2 rare, 3-4 mid, 5-7 very common (SUBTLEX-US, film subtitles). Prevalence = share of US native speakers who know the word.
 
@@ -115,9 +112,8 @@ Zipf: 1-2 rare, 3-4 mid, 5-7 very common (SUBTLEX-US, film subtitles). Prevalenc
 | 5k-b | 4 |
 | 6k-a | 6 |
 | 6k-b | 2 |
-| awl | 7 |
 
-563 of 570 AWL families are already inside Nation 1-6K; only 7 are AWL-only: ethic, widespread, deduce, negate, administrate, append, so-called.
+563 of 570 AWL families are inside Nation 1-6K and flagged awl=1; the rest are in data/dropped.txt.
 
 ## 8. Oxford 3000/5000 words not covered by Nation 1-6K (headword or member)
 
@@ -126,12 +122,12 @@ Zipf: 1-2 rare, 3-4 mid, 5-7 very common (SUBTLEX-US, film subtitles). Prevalenc
 | A1 | 22 |
 | A2 | 13 |
 | B1 | 6 |
-| B2 | 25 |
+| B2 | 28 |
 | C1 | 49 |
 
-115 of 4,952 Oxford words are outside Nation 1-6K, e.g. ah, airport, app, artwork, atrocity, backdrop, backup, bathroom, battlefield, bedroom, benchmark, birthday, blog, boyfriend, breakdown, breakthrough, broadband, businessman, cd, classroom, decision-making, desktop, download, downstairs, downtown ...
+118 of 4,952 Oxford words are outside Nation 1-6K, e.g. ah, airport, app, artwork, atrocity, backdrop, backup, bathroom, battlefield, bedroom, benchmark, birthday, blog, boyfriend, breakdown, breakthrough, broadband, businessman, cd, classroom, decision-making, desktop, download, downstairs, downtown ...
 
 ## 9. Dropped entries
 
-0 entries failed the `^[a-z][a-z'-]*$` filter.
+7 entries in `data/dropped.txt` (`bandN` = failed the `^[a-z][a-z'-]*$` filter, `awl` = AWL family not in Nation 1-6K): awl administrate, awl deduce, awl negate, awl append, awl widespread, awl ethic, awl so-called
 
