@@ -124,6 +124,20 @@ class Session:
         s._new_block()
         return s
 
+    @classmethod
+    def restore(cls, d: dict, subbands: list[Subband], bank: Bank, seed: Optional[int] = None) -> "Session":
+        """Rebuild a session from store.session_dict(); the staircase is replayed from the saved blocks."""
+        s = cls(d["id"], subbands, bank, random.Random(seed), started=datetime.fromisoformat(d["started"]))
+        names = [b.name for b in subbands]
+        s.band_idx = names.index(d["blocks"][0]["subband"])
+        for bd in d["blocks"]:
+            items = [Item(**i) for i in bd["items"]]
+            s.used.update(i.word for i in items)
+            s.blocks.append(Block(bd["no"], bd["subband"], items, bd.get("pos", len(items))))
+            if s.block.done:
+                s._after_block()
+        return s
+
     @property
     def band(self) -> Subband:
         return self.subbands[self.band_idx]

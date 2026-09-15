@@ -1,0 +1,410 @@
+{
+ "id": "2026-09-15_220053_d7f7",
+ "started": "2026-09-15T22:00:53",
+ "stop_reason": "second reversal",
+ "blocks": [
+  {
+   "no": 1,
+   "subband": "4k-a",
+   "hits": 8,
+   "false_alarms": 0,
+   "score": 0.8,
+   "items": [
+    {
+     "word": "vendor",
+     "real": true,
+     "definition": "someone who promotes or exchanges goods or services for money",
+     "answer": true,
+     "ms": 2278
+    },
+    {
+     "word": "lixied",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1124
+    },
+    {
+     "word": "outbole",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1692
+    },
+    {
+     "word": "ferry",
+     "real": true,
+     "definition": "a boat that transports people or vehicles across a body of water and operates on a regular schedule",
+     "answer": true,
+     "ms": 818
+    },
+    {
+     "word": "villa",
+     "real": true,
+     "definition": "detached or semidetached suburban house",
+     "answer": true,
+     "ms": 719
+    },
+    {
+     "word": "doochgay",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1148
+    },
+    {
+     "word": "specimen",
+     "real": true,
+     "definition": "an example regarded as typical of its class",
+     "answer": true,
+     "ms": 1819
+    },
+    {
+     "word": "delicate",
+     "real": true,
+     "definition": "exquisitely fine and subtle and pleasing; susceptible to injury",
+     "answer": true,
+     "ms": 1657
+    },
+    {
+     "word": "cautious",
+     "real": true,
+     "definition": "showing careful forethought",
+     "answer": true,
+     "ms": 678
+    },
+    {
+     "word": "implicit",
+     "real": true,
+     "definition": "implied though not directly expressed; inherent in the nature of something",
+     "answer": true,
+     "ms": 1309
+    },
+    {
+     "word": "arouse",
+     "real": true,
+     "definition": "call forth (emotions, feelings, and responses)",
+     "answer": false,
+     "ms": 840
+    },
+    {
+     "word": "pledge",
+     "real": true,
+     "definition": "promise solemnly and formally",
+     "answer": false,
+     "ms": 826
+    },
+    {
+     "word": "compile",
+     "real": true,
+     "definition": "get or gather together",
+     "answer": true,
+     "ms": 604
+    },
+    {
+     "word": "anvy",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1119
+    },
+    {
+     "word": "slerrs",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 922
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "subband": "3k-b",
+   "hits": 10,
+   "false_alarms": 0,
+   "score": 1.0,
+   "items": [
+    {
+     "word": "shicked",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 3519
+    },
+    {
+     "word": "carbon",
+     "real": true,
+     "definition": "an abundant nonmetallic tetravalent element occurring in three allotropic forms: amorphous carbon and graphite and diamond; occurs in all organic compounds",
+     "answer": true,
+     "ms": 827
+    },
+    {
+     "word": "rage",
+     "real": true,
+     "definition": "a feeling of intense anger",
+     "answer": true,
+     "ms": 717
+    },
+    {
+     "word": "burden",
+     "real": true,
+     "definition": "an onerous or difficult concern",
+     "answer": true,
+     "ms": 1019
+    },
+    {
+     "word": "threndows",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 968
+    },
+    {
+     "word": "notchpard",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1180
+    },
+    {
+     "word": "relatives",
+     "real": true,
+     "definition": "a person related by blood or marriage",
+     "answer": true,
+     "ms": 679
+    },
+    {
+     "word": "satellite",
+     "real": true,
+     "definition": "man-made equipment that orbits around the earth or the moon",
+     "answer": true,
+     "ms": 2740
+    },
+    {
+     "word": "embrace",
+     "real": true,
+     "definition": "include in scope; include as part of something broader; have as one's sphere or territory",
+     "answer": true,
+     "ms": 814
+    },
+    {
+     "word": "manifest",
+     "real": true,
+     "definition": "provide evidence for; stand as proof of; show by one's behavior, attitude, or external attributes",
+     "answer": true,
+     "ms": 912
+    },
+    {
+     "word": "nedge",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1421
+    },
+    {
+     "word": "poolier",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 3764
+    },
+    {
+     "word": "lobby",
+     "real": true,
+     "definition": "a large entrance or reception room or area",
+     "answer": true,
+     "ms": 615
+    },
+    {
+     "word": "episode",
+     "real": true,
+     "definition": "a happening that is distinctive in a series of related events",
+     "answer": true,
+     "ms": 2002
+    },
+    {
+     "word": "talent",
+     "real": true,
+     "definition": "natural abilities or qualities",
+     "answer": true,
+     "ms": 701
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "subband": "4k-a",
+   "hits": 6,
+   "false_alarms": 1,
+   "score": 0.4,
+   "items": [
+    {
+     "word": "owl",
+     "real": true,
+     "definition": "nocturnal bird of prey with hawk-like beak and claws and large head with front-facing eyes",
+     "answer": true,
+     "ms": 805
+    },
+    {
+     "word": "ambitious",
+     "real": true,
+     "definition": "having a strong desire for success or achievement",
+     "answer": true,
+     "ms": 3955
+    },
+    {
+     "word": "sentiment",
+     "real": true,
+     "definition": "tender, romantic, or nostalgic feeling or emotion",
+     "answer": true,
+     "ms": 1296
+    },
+    {
+     "word": "sceptic",
+     "real": true,
+     "definition": "someone who habitually doubts accepted beliefs",
+     "answer": false,
+     "ms": 1188
+    },
+    {
+     "word": "wit",
+     "real": true,
+     "definition": "a message whose ingenuity or verbal skill or incongruity has the power to evoke laughter",
+     "answer": false,
+     "ms": 1093
+    },
+    {
+     "word": "jolule",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 851
+    },
+    {
+     "word": "stavall",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1041
+    },
+    {
+     "word": "pown",
+     "real": false,
+     "definition": "",
+     "answer": true,
+     "ms": 1149
+    },
+    {
+     "word": "chancellor",
+     "real": true,
+     "definition": "the person who is head of government (in several countries)",
+     "answer": false,
+     "ms": 2165
+    },
+    {
+     "word": "blackboomed",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1188
+    },
+    {
+     "word": "diabetes",
+     "real": true,
+     "definition": "a polygenic disease characterized by abnormally high glucose levels in the blood; any of several metabolic disorders marked by excessive urination and persistent thirst",
+     "answer": true,
+     "ms": 1357
+    },
+    {
+     "word": "widow",
+     "real": true,
+     "definition": "a woman whose husband is dead especially one who has not remarried",
+     "answer": false,
+     "ms": 1195
+    },
+    {
+     "word": "bull",
+     "real": true,
+     "definition": "uncastrated adult male of domestic cattle",
+     "answer": true,
+     "ms": 576
+    },
+    {
+     "word": "nexed",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1800
+    },
+    {
+     "word": "metropolitan",
+     "real": true,
+     "definition": "relating to or characteristic of a metropolis",
+     "answer": true,
+     "ms": 1042
+    }
+   ]
+  }
+ ],
+ "result": {
+  "level": "3k-b",
+  "lowest_failed": "4k-a",
+  "cefr": "B1",
+  "det_low": 60,
+  "det_high": 85,
+  "blocks": 3,
+  "items": 45,
+  "false_alarms": 1,
+  "n_pseudo": 15,
+  "fa_rate": 0.0667,
+  "reliable": true,
+  "path": [
+   {
+    "block": 1,
+    "subband": "4k-a",
+    "score": 0.8,
+    "mastered": false
+   },
+   {
+    "block": 2,
+    "subband": "3k-b",
+    "score": 1.0,
+    "mastered": true
+   },
+   {
+    "block": 3,
+    "subband": "4k-a",
+    "score": 0.4,
+    "mastered": false
+   }
+  ],
+  "pooled": [
+   {
+    "subband": "3k-b",
+    "hits": 10,
+    "n_real": 10,
+    "false_alarms": 0,
+    "n_pseudo": 5,
+    "score": 1.0,
+    "mastered": true
+   },
+   {
+    "subband": "4k-a",
+    "hits": 14,
+    "n_real": 20,
+    "false_alarms": 1,
+    "n_pseudo": 10,
+    "score": 0.6,
+    "mastered": false
+   }
+  ],
+  "misses": [
+   "arouse",
+   "pledge",
+   "sceptic",
+   "wit",
+   "chancellor",
+   "widow"
+  ]
+ }
+}

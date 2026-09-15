@@ -78,10 +78,11 @@ format, adaptively. Specified in issue #4; UI prototype in `design/level-test/`.
    ≥ 0.85 → up one sub-band, else down; stop on the 2nd reversal, after 6
    blocks, or at the end of the scale. Level = highest sub-band whose pooled
    score is ≥ 0.85; false-alarm rate > 25 % → unreliable.
-3. Output per session: `vocab/tests/sessions/<id>.json` (every item and answer),
-   one row per block in `vocab/tests/results.csv`
-   (`date, session, subband, n, hits, false_alarms, score`), one row per
-   session in `vocab/tests/levels.csv`; missed words → `vocab/my-words.csv`.
+3. Output per session, saved while the test runs (issue #5):
+   `vocab/tests/sessions/<id>.json` (every item and answer, resumable), one
+   row per block in `vocab/tests/results.csv`, one row per wrong answer in
+   `vocab/tests/misses.csv` (`miss` / `false_alarm`, with answer time), one
+   row per session in `vocab/tests/levels.csv`. Schemas: `vocab/tests/README.md`.
 4. `tests/` simulate a learner at every sub-band and a guesser.
 
 Output: a level estimate in ~5 minutes, repeatable weekly. Status: done (issue #4).

@@ -1,0 +1,408 @@
+{
+ "id": "2026-09-15_220243_d33a",
+ "started": "2026-09-15T22:02:43",
+ "stop_reason": "second reversal",
+ "blocks": [
+  {
+   "no": 1,
+   "subband": "4k-a",
+   "hits": 9,
+   "false_alarms": 0,
+   "score": 0.9,
+   "items": [
+    {
+     "word": "cowkise",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 4015
+    },
+    {
+     "word": "verse",
+     "real": true,
+     "definition": "literature in metrical form",
+     "answer": true,
+     "ms": 2968
+    },
+    {
+     "word": "timp",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 887
+    },
+    {
+     "word": "hardware",
+     "real": true,
+     "definition": "major items of military weaponry (as tanks or missile)",
+     "answer": true,
+     "ms": 584
+    },
+    {
+     "word": "bothry",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1810
+    },
+    {
+     "word": "urtseenth",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 847
+    },
+    {
+     "word": "anthropology",
+     "real": true,
+     "definition": "the social science that studies the origins and social relationships of human beings",
+     "answer": true,
+     "ms": 1989
+    },
+    {
+     "word": "portfolio",
+     "real": true,
+     "definition": "a large, flat, thin case for carrying loose papers or drawings or maps; usually leather",
+     "answer": true,
+     "ms": 717
+    },
+    {
+     "word": "armour",
+     "real": true,
+     "definition": "a military unit consisting of armored fighting vehicles",
+     "answer": true,
+     "ms": 1042
+    },
+    {
+     "word": "abrupt",
+     "real": true,
+     "definition": "marked by sudden changes in subject and sharp transitions",
+     "answer": false,
+     "ms": 1686
+    },
+    {
+     "word": "ash",
+     "real": true,
+     "definition": "the residue that remains when something is burned",
+     "answer": true,
+     "ms": 617
+    },
+    {
+     "word": "astonish",
+     "real": true,
+     "definition": "affect with wonder",
+     "answer": true,
+     "ms": 1729
+    },
+    {
+     "word": "federate",
+     "real": true,
+     "definition": "enter into a league for a common purpose",
+     "answer": true,
+     "ms": 1609
+    },
+    {
+     "word": "amateur",
+     "real": true,
+     "definition": "engaged in as a pastime",
+     "answer": true,
+     "ms": 761
+    },
+    {
+     "word": "humbugn",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 984
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "subband": "4k-b",
+   "hits": 8,
+   "false_alarms": 1,
+   "score": 0.6,
+   "items": [
+    {
+     "word": "idle",
+     "real": true,
+     "definition": "not in action or at work",
+     "answer": true,
+     "ms": 1282
+    },
+    {
+     "word": "rifle",
+     "real": true,
+     "definition": "a shoulder firearm with a long barrel and a rifled bore",
+     "answer": true,
+     "ms": 1554
+    },
+    {
+     "word": "integral",
+     "real": true,
+     "definition": "existing as an essential constituent or characteristic",
+     "answer": false,
+     "ms": 2544
+    },
+    {
+     "word": "copyright",
+     "real": true,
+     "definition": "a document granting exclusive right to publish and sell literary or musical or artistic work",
+     "answer": true,
+     "ms": 822
+    },
+    {
+     "word": "torture",
+     "real": true,
+     "definition": "extreme mental distress",
+     "answer": false,
+     "ms": 2172
+    },
+    {
+     "word": "bume",
+     "real": false,
+     "definition": "",
+     "answer": true,
+     "ms": 597
+    },
+    {
+     "word": "automobile",
+     "real": true,
+     "definition": "a motor vehicle with four wheels; usually propelled by an internal combustion engine",
+     "answer": true,
+     "ms": 769
+    },
+    {
+     "word": "nishmies",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1031
+    },
+    {
+     "word": "outlet",
+     "real": true,
+     "definition": "a place of business for retailing goods",
+     "answer": true,
+     "ms": 670
+    },
+    {
+     "word": "foundlowed",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2096
+    },
+    {
+     "word": "cube",
+     "real": true,
+     "definition": "a hexahedron with six equal squares as faces",
+     "answer": true,
+     "ms": 569
+    },
+    {
+     "word": "ego",
+     "real": true,
+     "definition": "an inflated feeling of pride in your superiority to others",
+     "answer": true,
+     "ms": 708
+    },
+    {
+     "word": "hirtored",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1676
+    },
+    {
+     "word": "amid",
+     "real": true,
+     "definition": "",
+     "answer": true,
+     "ms": 766
+    },
+    {
+     "word": "fensa",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1190
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "subband": "4k-a",
+   "hits": 9,
+   "false_alarms": 0,
+   "score": 0.9,
+   "items": [
+    {
+     "word": "wirlers",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 2572
+    },
+    {
+     "word": "certificate",
+     "real": true,
+     "definition": "a document attesting to the truth of certain stated facts",
+     "answer": true,
+     "ms": 987
+    },
+    {
+     "word": "liver",
+     "real": true,
+     "definition": "large and complicated reddish-brown glandular organ located in the upper right portion of the abdominal cavity; secretes bile and functions in metabolism of protein and carbohydrate and fat; synthesizes substances involved in the clotting of the blood; synthesizes vitamin A; detoxifies poisonous substances and breaks down worn-out erythrocytes",
+     "answer": true,
+     "ms": 701
+    },
+    {
+     "word": "lealt",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1690
+    },
+    {
+     "word": "prolong",
+     "real": true,
+     "definition": "lengthen in time; cause to be or last longer",
+     "answer": false,
+     "ms": 1047
+    },
+    {
+     "word": "repress",
+     "real": true,
+     "definition": "put down by force or intimidation",
+     "answer": true,
+     "ms": 2992
+    },
+    {
+     "word": "sloos",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 785
+    },
+    {
+     "word": "canal",
+     "real": true,
+     "definition": "(astronomy) an indistinct surface feature of Mars once thought to be a system of channels; they are now believed to be an optical illusion",
+     "answer": true,
+     "ms": 658
+    },
+    {
+     "word": "clash",
+     "real": true,
+     "definition": "a loud resonant repeating noise",
+     "answer": true,
+     "ms": 960
+    },
+    {
+     "word": "toundest",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1593
+    },
+    {
+     "word": "metropolitan",
+     "real": true,
+     "definition": "relating to or characteristic of a metropolis",
+     "answer": true,
+     "ms": 721
+    },
+    {
+     "word": "noble",
+     "real": true,
+     "definition": "impressive in size, manner, or appearance",
+     "answer": true,
+     "ms": 1596
+    },
+    {
+     "word": "forbid",
+     "real": true,
+     "definition": "command against",
+     "answer": true,
+     "ms": 1458
+    },
+    {
+     "word": "nometheeds",
+     "real": false,
+     "definition": "",
+     "answer": false,
+     "ms": 1247
+    },
+    {
+     "word": "spectacular",
+     "real": true,
+     "definition": "sensational in appearance or thrilling in effect",
+     "answer": true,
+     "ms": 1101
+    }
+   ]
+  }
+ ],
+ "result": {
+  "level": "4k-a",
+  "lowest_failed": "4k-b",
+  "cefr": "B2",
+  "det_low": 90,
+  "det_high": 105,
+  "blocks": 3,
+  "items": 45,
+  "false_alarms": 1,
+  "n_pseudo": 15,
+  "fa_rate": 0.0667,
+  "reliable": true,
+  "path": [
+   {
+    "block": 1,
+    "subband": "4k-a",
+    "score": 0.9,
+    "mastered": true
+   },
+   {
+    "block": 2,
+    "subband": "4k-b",
+    "score": 0.6,
+    "mastered": false
+   },
+   {
+    "block": 3,
+    "subband": "4k-a",
+    "score": 0.9,
+    "mastered": true
+   }
+  ],
+  "pooled": [
+   {
+    "subband": "4k-a",
+    "hits": 18,
+    "n_real": 20,
+    "false_alarms": 0,
+    "n_pseudo": 10,
+    "score": 0.9,
+    "mastered": true
+   },
+   {
+    "subband": "4k-b",
+    "hits": 8,
+    "n_real": 10,
+    "false_alarms": 1,
+    "n_pseudo": 5,
+    "score": 0.6,
+    "mastered": false
+   }
+  ],
+  "misses": [
+   "abrupt",
+   "integral",
+   "torture",
+   "prolong"
+  ]
+ }
+}

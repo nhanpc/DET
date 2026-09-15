@@ -20,7 +20,9 @@ STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="DET vocabulary level test")
 SUBBANDS = load_subbands()
 BANK = Bank()
-SESSIONS: dict[str, Session] = {}
+# Unfinished sessions come back from disk so a closed tab or a restart does not lose a test.
+SESSIONS: dict[str, Session] = {d["id"]: Session.restore(d, SUBBANDS, BANK)
+                                for d in store.load_sessions() if not d["finished"]}
 
 
 class Answer(BaseModel):
@@ -58,8 +60,11 @@ def index():
 @app.get("/api/config")
 def config():
     last = store.load_levels()
+    open_ = [s for s in SESSIONS.values() if not s.finished]
+    resume = max(open_, key=lambda s: s.started) if open_ else None
     return {"real_per_block": REAL_PER_BLOCK, "pseudo_per_block": PSEUDO_PER_BLOCK, "max_blocks": MAX_BLOCKS,
-            "subbands": [asdict(b) for b in SUBBANDS], "last": last[-1] if last else None}
+            "subbands": [asdict(b) for b in SUBBANDS], "last": last[-1] if last else None,
+            "resume": {"session": resume.id, "block": block_view(resume)} if resume else None}
 
 
 @app.post("/api/session")
@@ -77,8 +82,11 @@ def answer(sid: str, a: Answer):
         status = s.answer(a.yes, a.ms)
     except ValueError as e:
         raise HTTPException(409, str(e))
+    if status != "next":
+        store.save_block(s, s.block)
     if status == "finished":
-        store.save_session(s, s.result())
+        store.save_result(s, s.result())
+    store.write_session(s)
     return {"status": status, "block": block_view(s)}
 
 
@@ -89,6 +97,7 @@ def next_block(sid: str):
         s.next_block()
     except ValueError as e:
         raise HTTPException(409, str(e))
+    store.write_session(s)
     return {"block": block_view(s)}
 
 
@@ -98,12 +107,3 @@ def result(sid: str):
     if not s.finished:
         raise HTTPException(409, "session not finished")
     return result_view(s)
-
-
-@app.post("/api/session/{sid}/save-misses")
-def save_misses(sid: str):
-    s = get(sid)
-    if not s.finished:
-        raise HTTPException(409, "session not finished")
-    added = store.save_misses([i.word for i in s.result().misses], BANK.index)
-    return {"added": added, "file": store.MY_WORDS.name}

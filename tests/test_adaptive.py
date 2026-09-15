@@ -110,3 +110,13 @@ def test_stops_at_top_of_scale():
     s = run(Session.create("t", SUBBANDS, FakeBank(), seed=2, start_band="6k-a"), learner_at(11))
     assert s.result().level == "6k-b"
     assert s.stop_reason == "end of scale"
+
+
+def test_restore_replays_the_staircase():
+    from app.store import session_dict
+
+    s = run(Session.create("t", SUBBANDS, FakeBank(), seed=4), learner_at(6))
+    back = Session.restore(session_dict(s), SUBBANDS, FakeBank())
+    assert back.finished and back.stop_reason == s.stop_reason
+    assert back.result() == s.result()
+    assert session_dict(back) == session_dict(s)

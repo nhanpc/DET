@@ -97,8 +97,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 Keys: `Y` = real word, `N` = not a word, `Space` = next block. The result
 page shows the level, the estimated DET range, the pooled score per sub-band,
 a guessing check (false-alarm rate > 25 % → unreliable) and the words you
-missed, which one click appends to `vocab/my-words.csv`. Every session is
-written to `vocab/tests/` (`levels.csv`, `results.csv`, `sessions/*.json`).
+missed. Everything is saved as you go, nothing to click: `vocab/tests/`
+holds `levels.csv` (one row per test), `results.csv` (per block),
+`misses.csv` (every word you got wrong, with the answer time) and
+`sessions/*.json` (every item). An unfinished test is offered as *Resume*
+the next time you open the app. Schemas: [vocab/tests/README.md](vocab/tests/README.md).
 
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
@@ -128,9 +131,9 @@ DET/
 │   ├── senses.csv               # dictionary: up to 3 senses per family (definition, example) from Open English WordNet
 │   ├── relations.csv            # synonym / antonym / similar links between families
 │   ├── pseudowords.csv          # invented words for the yes/no test (British Lexicon Project)
-│   ├── my-words.csv             # words met in practice + words missed in level tests
+│   ├── my-words.csv             # words met in practice
 │   ├── decks/                   # Anki exports (one card per family)
-│   ├── tests/                   # level-test sessions: levels.csv, results.csv, sessions/*.json
+│   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json
 │   └── progress.md              # % known per sub-band → estimated level
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip

@@ -113,6 +113,7 @@
   </div>
   <div class="cta">
     <button class="primary" id="btn-start">Start test</button>
+    <button class="secondary" id="btn-resume" hidden></button>
     <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
     <div class="note" id="last" hidden></div>
   </div>
@@ -167,9 +168,8 @@
     </div>
   </div>
   <div class="actions">
-    <button class="primary" id="btn-save">Save missed words to my-words.csv</button>
-    <button class="secondary" id="btn-retake">Retake</button>
-    <span class="note" id="r-saved">Session written to vocab/tests/levels.csv and results.csv</span>
+    <button class="primary" id="btn-retake">Retake</button>
+    <span class="note">Saved to vocab/tests/ — levels.csv, results.csv and the missed words in misses.csv</span>
   </div>
 </section>
 
@@ -178,7 +178,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const screens = ['start', 'test', 'between', 'result'];
-  let screen = 'start', sid = null, block = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
+  let screen = 'start', sid = null, block = null, resume = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
 
   const api = async (path, opts) => {
     const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
@@ -197,15 +197,26 @@
       $('last').textContent = `Last result: ${c.last.level || 'below 1k-b'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)');
       $('last').hidden = false;
     }
+    resume = c.resume;
+    $('btn-resume').hidden = !resume;
+    if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
+  }
+  function beginTest() {
+    startedAt = Date.now();
+    clearInterval(clockTimer);
+    clockTimer = setInterval(() => { $('clock').textContent = fmt(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
+    if (block.pos >= block.size) { $('done-no').textContent = block.no; $('next-no').textContent = block.no + 1; show('between'); }
+    else { renderTest(); show('test'); }
   }
   async function start() {
     const d = await api('/api/session', { method: 'POST' });
     sid = d.session; block = d.block; maxBlocks = d.max_blocks;
-    startedAt = Date.now();
-    clearInterval(clockTimer);
-    clockTimer = setInterval(() => { $('clock').textContent = fmt(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
-    renderTest();
-    show('test');
+    beginTest();
+  }
+  function resumeTest() {
+    if (!resume) return;
+    sid = resume.session; block = resume.block;
+    beginTest();
   }
 
   // ---- test
@@ -256,15 +267,7 @@
     $('r-misses').innerHTML = r.misses.length
       ? r.misses.map(m => `<div><b>${m.word}</b><span>${m.definition || ''}</span></div>`).join('')
       : '<div class="empty">None — every real word was recognised.</div>';
-    $('btn-save').disabled = r.misses.length === 0;
-    $('btn-save').textContent = 'Save missed words to my-words.csv';
-    $('r-saved').textContent = 'Session written to vocab/tests/levels.csv and results.csv';
     show('result');
-  }
-  async function saveMisses() {
-    const d = await api(`/api/session/${sid}/save-misses`, { method: 'POST' });
-    $('btn-save').textContent = `Saved ${d.added} to my-words.csv`;
-    $('btn-save').disabled = true;
   }
 
   // ---- wiring
@@ -272,7 +275,7 @@
   $('btn-yes').onclick = () => answer(true);
   $('btn-no').onclick = () => answer(false);
   $('btn-continue').onclick = nextBlock;
-  $('btn-save').onclick = saveMisses;
+  $('btn-resume').onclick = resumeTest;
   $('btn-retake').onclick = () => { show('start'); init(); };
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

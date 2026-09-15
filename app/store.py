@@ -1,4 +1,10 @@
-"""Write finished sessions to vocab/tests/ and missed words to vocab/my-words.csv."""
+"""Write sessions to vocab/tests/ as they happen (GitHub issue nhanpc/DET#5).
+
+sessions/<id>.json  rewritten after every answer — the full session, resumable
+results.csv         one row per finished block
+misses.csv          one row per wrong answer: real word rejected (miss) or invented word accepted (false_alarm)
+levels.csv          one row per finished session
+"""
 from __future__ import annotations
 
 import csv
@@ -6,20 +12,23 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from .adaptive import Result, Session
+from .adaptive import Block, Result, Session
 from .bank import VOCAB
 
 TESTS = VOCAB / "tests"
 SESSIONS = TESTS / "sessions"
-RESULTS = TESTS / "results.csv"          # one row per block (Phase 2 schema)
-LEVELS = TESTS / "levels.csv"            # one row per session
-MY_WORDS = VOCAB / "my-words.csv"
+RESULTS = TESTS / "results.csv"
+MISSES = TESTS / "misses.csv"
+LEVELS = TESTS / "levels.csv"
 
 RESULTS_HEADER = ["date", "session", "subband", "n", "hits", "false_alarms", "score"]
+MISSES_HEADER = ["date", "session", "subband", "word", "kind", "ms"]
 LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable"]
 
 
 def _append(path: Path, header: list[str], rows: list[list]) -> None:
+    if not rows:
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists()
     with path.open("a", newline="", encoding="utf-8") as f:
@@ -29,50 +38,63 @@ def _append(path: Path, header: list[str], rows: list[list]) -> None:
         w.writerows(rows)
 
 
-def session_dict(s: Session, r: Result) -> dict:
-    return {
-        "id": s.id,
-        "started": s.started.isoformat(timespec="seconds"),
-        "stop_reason": s.stop_reason,
-        "blocks": [
-            {"no": b.no, "subband": b.subband, "hits": b.hits, "false_alarms": b.false_alarms, "score": b.score,
-             "items": [asdict(i) for i in b.items]}
-            for b in s.blocks if b.done
-        ],
-        "result": {**{k: v for k, v in asdict(r).items() if k not in ("misses", "pooled")},
-                   "pooled": [asdict(p) for p in r.pooled],
-                   "misses": [i.word for i in r.misses]},
-    }
-
-
-def save_session(s: Session, r: Result) -> Path:
-    SESSIONS.mkdir(parents=True, exist_ok=True)
-    path = SESSIONS / f"{s.id}.json"
-    path.write_text(json.dumps(session_dict(s, r), indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    date = s.started.date().isoformat()
-    _append(RESULTS, RESULTS_HEADER,
-            [[date, s.id, b.subband, len(b.items), b.hits, b.false_alarms, b.score] for b in s.blocks if b.done])
-    _append(LEVELS, LEVELS_HEADER,
-            [[date, s.id, r.level or "", r.det_low if r.det_low is not None else "",
-              r.det_high if r.det_high is not None else "", r.blocks, r.items, r.fa_rate, int(r.reliable)]])
-    return path
-
-
-def load_levels() -> list[dict]:
-    if not LEVELS.exists():
+def _read(path: Path) -> list[dict]:
+    if not path.exists():
         return []
-    with LEVELS.open(encoding="utf-8", newline="") as f:
+    with path.open(encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
 
 
-def save_misses(words: list[str], index: dict[str, dict]) -> int:
-    """Append missed families to my-words.csv (same columns as index.csv). Returns rows added."""
-    header = list(next(iter(index.values())).keys())
-    have: set[str] = set()
-    if MY_WORDS.exists():
-        with MY_WORDS.open(encoding="utf-8", newline="") as f:
-            have = {r["family"] for r in csv.DictReader(f)}
-    rows = [[index[w][c] for c in header] for w in words if w in index and w not in have]
-    if rows:
-        _append(MY_WORDS, header, rows)
-    return len(rows)
+def session_dict(s: Session) -> dict:
+    d = {
+        "id": s.id,
+        "started": s.started.isoformat(timespec="seconds"),
+        "finished": s.finished,
+        "stop_reason": s.stop_reason,
+        "blocks": [
+            {"no": b.no, "subband": b.subband, "pos": b.pos, "hits": b.hits, "false_alarms": b.false_alarms,
+             "score": b.score if b.done else None, "items": [asdict(i) for i in b.items]}
+            for b in s.blocks
+        ],
+    }
+    if s.finished:
+        r = s.result()
+        d["result"] = {**{k: v for k, v in asdict(r).items() if k not in ("misses", "pooled")},
+                       "pooled": [asdict(p) for p in r.pooled],
+                       "misses": [i.word for i in r.misses]}
+    return d
+
+
+def write_session(s: Session) -> Path:
+    SESSIONS.mkdir(parents=True, exist_ok=True)
+    path = SESSIONS / f"{s.id}.json"
+    path.write_text(json.dumps(session_dict(s), indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def save_block(s: Session, b: Block) -> None:
+    date = s.started.date().isoformat()
+    _append(RESULTS, RESULTS_HEADER, [[date, s.id, b.subband, len(b.items), b.hits, b.false_alarms, b.score]])
+    _append(MISSES, MISSES_HEADER,
+            [[date, s.id, b.subband, i.word, "miss" if i.real else "false_alarm", i.ms if i.ms is not None else ""]
+             for i in b.items if not i.correct])
+
+
+def save_result(s: Session, r: Result) -> None:
+    _append(LEVELS, LEVELS_HEADER,
+            [[s.started.date().isoformat(), s.id, r.level or "", r.det_low if r.det_low is not None else "",
+              r.det_high if r.det_high is not None else "", r.blocks, r.items, r.fa_rate, int(r.reliable)]])
+
+
+def load_sessions() -> list[dict]:
+    """Every saved session, oldest first. Files from before #5 have no `finished` flag but always a result."""
+    out = []
+    for p in sorted(SESSIONS.glob("*.json")) if SESSIONS.exists() else []:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        d.setdefault("finished", d.get("result") is not None)
+        out.append(d)
+    return out
+
+
+def load_levels() -> list[dict]:
+    return _read(LEVELS)
