@@ -8,9 +8,10 @@ Run everything from the repo root.
 | `extract_raw.py` | openpyxl, pdftotext | `data/raw/` | `data/extract/*.tsv` |
 | `build_bands.py` | Python 3.10+ (stdlib) | `data/raw/nation/`, `data/extract/`, `vocab/subbands.csv` | `vocab/index.csv`, `data/dropped.txt` |
 | `build_dict.py` | Python 3.10+ (stdlib) | `vocab/index.csv`, `data/extract/oewn_*.tsv` | `vocab/senses.csv`, `vocab/relations.csv`, `definition`/`example` in `vocab/index.csv` |
+| `build_pseudowords.py` | Python 3.10+ (stdlib) | `vocab/index.csv`, `vocab/subbands.csv`, `data/extract/blp_nonwords.tsv`, `data/raw/nation/`, `data/extract/{subtlex_zipf,prevalence}.tsv` | `vocab/pseudowords.csv` |
 | `audit_data.py` | Python 3.10+ (stdlib) | the above | `data/AUDIT.md` |
 
-Order: `fetch_raw.sh` → `extract_raw.py` → `build_bands.py` → `extract_raw.py oewn` → `build_dict.py` → `audit_data.py`
+Order: `fetch_raw.sh` → `extract_raw.py` → `build_bands.py` → `extract_raw.py oewn` → `build_dict.py` → `build_pseudowords.py` → `audit_data.py`
 (the OEWN extract is sliced to the families in `index.csv`, so it runs after the bands are built).
 
 Grouping rules and the column meanings are specified in [issue #2](https://github.com/nhanpc/DET/issues/2);
@@ -36,3 +37,12 @@ Dictionary and links are specified in [issue #3](https://github.com/nhanpc/DET/i
   directions; `sense` is blank when the link belongs to a sense beyond the three kept.
 - Targets that are only a family member (not a headword) are accepted only if that family has a kept sense with
   the same part of speech (so *big* is not linked to *mountain* via *mountainous*).
+
+Pseudo-words are specified in [issue #4](https://github.com/nhanpc/DET/issues/4); the short version:
+
+- Source: British Lexicon Project nonwords (`data/extract/blp_nonwords.tsv`: nonword, accuracy). Kept only when
+  natives rejected them ≥ 95 % of the time, 4–11 letters, not in `index.csv` members, Nation 1–6K, SUBTLEX or the
+  prevalence list, and not a listed word plus `-s/-es/-ed/-ing/-er/-ly`.
+- `vocab/pseudowords.csv` — `pseudoword, subband, length, accuracy`. ~120 per sub-band; the length distribution
+  mirrors that sub-band's alphabetic headwords (clamped to 4–11) so word length gives nothing away. Seeded, so the
+  file is reproducible.

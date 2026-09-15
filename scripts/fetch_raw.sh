@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 RAW=data/raw
-mkdir -p "$RAW"/{nation/official-pdf,awl,subtlex,prevalence,oxford}
+mkdir -p "$RAW"/{nation/official-pdf,awl,subtlex,prevalence,oxford,blp}
 
 echo "== Nation BNC/COCA base word lists (bands 1-6)"
 # Nation's site no longer hosts the family files; only the headword PDFs remain there.
@@ -41,5 +41,10 @@ done
 echo "== Open English WordNet (LMF XML)"
 mkdir -p "$RAW/oewn"
 gh release download 2025-edition -R globalwordnet/english-wordnet -p 'english-wordnet-2025.xml.gz' -D "$RAW/oewn" --clobber
+
+echo "== British Lexicon Project items (OSF b5sdk): words + nonwords with lexical-decision accuracy"
+curl -sSL -o "$RAW/blp/blp-items.txt.zip" "https://osf.io/download/6tdnz/"
+curl -sSL -o "$RAW/blp/license.txt" "https://osf.io/download/5jmgt/"
+unzip -oq "$RAW/blp/blp-items.txt.zip" -d "$RAW/blp"
 
 echo "done. Now run: python3 scripts/extract_raw.py"

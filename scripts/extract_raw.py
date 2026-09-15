@@ -16,6 +16,7 @@ Outputs (all UTF-8, tab-separated, header row):
   data/extract/oewn_relations.tsv    lemma, pos, sense_no, relation, target
   data/extract/oewn_forms.tsv        form, lemma   (inflected forms OEWN lists, e.g. media -> medium)
     (Open English WordNet, only lemmas that are a family headword or member in vocab/index.csv)
+  data/extract/blp_nonwords.tsv      nonword, accuracy   (British Lexicon Project pseudo-words)
 """
 from __future__ import annotations
 
@@ -107,6 +108,20 @@ def extract_prevalence():
             yield (str(r[iw]).strip().lower(), f"{float(r[ip]):.4f}", f"{float(r[ipr]):.3f}", r[inobs])
 
     write_tsv(OUT / "prevalence.tsv", ["word", "pknown", "prevalence", "nobs"], rows())
+
+
+# ---------------------------------------------------------------- British Lexicon Project
+def extract_blp():
+    """Nonwords only: spelling and the share of native participants who correctly rejected them."""
+    with (RAW / "blp" / "blp-items.txt").open(encoding="utf-8", newline="") as f:
+        items = list(csv.DictReader(f, delimiter="\t"))
+
+    def rows():
+        for r in items:
+            if r["lexicality"] == "N" and re.fullmatch(r"[a-z]+", r["spelling"]):
+                yield (r["spelling"], f"{float(r['accuracy']):.3f}")
+
+    write_tsv(OUT / "blp_nonwords.tsv", ["nonword", "accuracy"], rows())
 
 
 # ---------------------------------------------------------------- Oxford 3000/5000
@@ -253,7 +268,8 @@ def extract_oewn():
 
 if __name__ == "__main__":
     steps = {"awl": extract_awl, "subtlex": extract_subtlex, "prevalence": extract_prevalence,
-             "oxford": extract_oxford, "nation_pdf": extract_nation_pdf, "oewn": extract_oewn}
+             "oxford": extract_oxford, "nation_pdf": extract_nation_pdf, "oewn": extract_oewn,
+             "blp": extract_blp}
     wanted = sys.argv[1:] or list(steps)
     for name in wanted:
         print(f"== {name}")
