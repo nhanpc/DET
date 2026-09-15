@@ -91,6 +91,27 @@
   .misses b { font: 400 18px var(--serif); min-width: 130px; } .misses span { font-size: 14px; color: var(--text-2); }
   .misses .empty { color: var(--muted); font-size: 14px; }
   .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* learn */
+  #learn { flex: 1; display: flex; flex-direction: column; gap: 32px; padding: 48px 24px 56px; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--bg); color: var(--text-2); border: 1px solid var(--border); }
+  .tag.repeat, .tag.missed { background: var(--red-bg); color: var(--red); border-color: transparent; }
+  .tag.shaky { background: #fbf1dc; color: #9a6b12; border-color: transparent; }
+  .tag.learned { background: var(--green-bg); color: var(--green); border-color: transparent; }
+  .tag.frontier { background: #e8eff7; color: var(--accent); border-color: transparent; }
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .toolbar select { height: 36px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font: inherit; }
+  .toolbar .secondary { height: 36px; padding: 0 14px; font-size: 14px; }
+  .words { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .words > div { display: grid; grid-template-columns: 32px 1fr; gap: 4px 14px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .words .n { grid-row: span 3; font: 500 13px var(--mono); color: var(--muted); padding-top: 6px; }
+  .words .w { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .words .w b { font: 400 22px var(--serif); } .words .w small { font: 500 12px var(--mono); color: var(--muted); }
+  .words .d { font-size: 14px; color: var(--text-2); }
+  .words .m { font-size: 13px; color: var(--muted); } .words .m i { font-style: normal; color: var(--text-2); }
+  .words .empty { display: block; color: var(--muted); font-size: 14px; }
+  .history { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -114,6 +135,7 @@
   <div class="cta">
     <button class="primary" id="btn-start">Start test</button>
     <button class="secondary" id="btn-resume" hidden></button>
+    <button class="secondary" id="btn-learn" hidden>What to learn</button>
     <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
     <div class="note" id="last" hidden></div>
   </div>
@@ -168,8 +190,45 @@
     </div>
   </div>
   <div class="actions">
-    <button class="primary" id="btn-retake">Retake</button>
+    <button class="primary" id="btn-learn-next">What to learn next</button>
+    <button class="secondary" id="btn-retake">Retake</button>
     <span class="note">Saved to vocab/tests/ — levels.csv, results.csv and the missed words in misses.csv</span>
+  </div>
+</section>
+
+<section id="learn" hidden>
+  <div class="head">
+    <div class="level">
+      <div class="eyebrow">What to learn · <span id="l-tests"></span></div>
+      <div class="big"><b id="l-frontier"></b><span id="l-level"></span></div>
+      <div class="det" id="l-why"></div>
+    </div>
+    <div class="rel">
+      <div class="tags" id="l-counts"></div>
+      <div class="note">From every word you were shown, all tests together</div>
+    </div>
+  </div>
+  <div class="section"><div class="eyebrow">Level over time</div><div class="history" id="l-history"></div></div>
+  <div class="cols">
+    <div class="section">
+      <div class="eyebrow">Sub-bands</div>
+      <table><thead><tr><th>Sub-band</th><th>Blocks</th><th>Score</th><th></th></tr></thead><tbody id="l-subbands"></tbody></table>
+      <div class="note">Pooled over reliable tests; each test counts half as much as the one after it. Mastered at 0.85.</div>
+    </div>
+    <div class="section">
+      <div class="eyebrow">Study list</div>
+      <div class="toolbar">
+        <label class="note">Batch <select id="l-batch"><option>10</option><option>15</option><option selected>20</option><option>30</option><option>50</option></select></label>
+        <button class="secondary" id="btn-export">Export to Anki</button>
+        <span class="note" id="l-exported"></span>
+      </div>
+      <div class="words" id="l-words"></div>
+      <div class="note">Order: repeat misses, misses from the frontier sub-band, other misses, slow answers, then the rest of the frontier sub-band by rank. Words you missed and later got right are left out.</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="primary" id="btn-learn-test">Take a test</button>
+    <button class="secondary" id="btn-learn-back">Back</button>
   </div>
 </section>
 
@@ -177,7 +236,7 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const screens = ['start', 'test', 'between', 'result'];
+  const screens = ['start', 'test', 'between', 'result', 'learn'];
   let screen = 'start', sid = null, block = null, resume = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
 
   const api = async (path, opts) => {
@@ -185,7 +244,10 @@
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     return r.json();
   };
-  const show = (name) => { screen = name; screens.forEach(s => { $(s).hidden = s !== name; }); };
+  const show = (name) => {
+    screen = name; screens.forEach(s => { $(s).hidden = s !== name; });
+    history.replaceState(null, '', name === 'learn' ? '#learn' : location.pathname);   // keep the URL in step with the screen
+  };
   const fmt = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 
   // ---- start
@@ -197,6 +259,7 @@
       $('last').textContent = `Last result: ${c.last.level || 'below 1k-b'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)');
       $('last').hidden = false;
     }
+    $('btn-learn').hidden = !c.last;
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
@@ -270,12 +333,51 @@
     show('result');
   }
 
+  // ---- learn
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const detRange = (lo, hi) => lo == null ? '—' : hi >= 160 ? `${lo}+` : `${lo}–${hi}`;
+  async function openLearn() {
+    clearInterval(clockTimer);
+    const n = $('l-batch').value;
+    const d = await api(`/api/learn?n=${n}`);
+    $('l-tests').textContent = `${d.sessions} test${d.sessions === 1 ? '' : 's'}`;
+    $('l-frontier').textContent = d.frontier;
+    $('l-level').textContent = d.level ? `level ${d.level}` : 'no level yet';
+    const trend = { up: 'going up', down: 'going down', flat: 'holding' }[d.trend];
+    $('l-why').textContent = `Next sub-band to master${trend ? ' · ' + trend : ''}`;
+    $('l-counts').innerHTML = ['repeat', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
+      .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`;
+    $('l-history').innerHTML = d.history.map(h =>
+      `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${h.level || '—'}</span><small>${h.date} · DET ${detRange(h.det_low, h.det_high)}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
+      || '<span class="note">No finished tests yet.</span>';
+    $('l-subbands').innerHTML = d.subbands.filter(s => s.blocks).map(s =>
+      `<tr><td class="mono">${s.subband}${s.subband === d.frontier ? ' ←' : ''}</td><td>${s.blocks}</td><td>${s.score.toFixed(2)}</td><td class="${s.status === 'mastered' ? 'ok' : 'bad'}">${s.status}</td></tr>`).join('');
+    $('l-words').innerHTML = d.words.length ? d.words.map((w, i) =>
+      `<div><span class="n">${i + 1}</span>` +
+      `<span class="w"><b>${esc(w.family)}</b><small>${w.subband} · #${w.rank}</small><span class="tag ${w.reason}">${w.reason}${w.missed > 1 ? ' ×' + w.missed : ''}</span></span>` +
+      `<span class="d">${esc(w.definition) || '<em>no definition</em>'}${w.example ? ' — <em>' + esc(w.example) + '</em>' : ''}</span>` +
+      `<span class="m">${w.members.length ? 'forms: <i>' + esc(w.members.slice(0, 8).join(', ')) + '</i>' : ''}${w.synonyms.length ? (w.members.length ? ' · ' : '') + '= <i>' + esc(w.synonyms.join(', ')) + '</i>' : ''}</span></div>`).join('')
+      : '<span class="empty">Nothing to learn yet — take a test first.</span>';
+    $('l-exported').textContent = '';
+    show('learn');
+  }
+  async function exportDeck() {
+    const d = await api(`/api/learn/export?n=${$('l-batch').value}`, { method: 'POST' });
+    $('l-exported').textContent = `${d.cards} cards → ${d.file}`;
+  }
+
   // ---- wiring
   $('btn-start').onclick = start;
   $('btn-yes').onclick = () => answer(true);
   $('btn-no').onclick = () => answer(false);
   $('btn-continue').onclick = nextBlock;
   $('btn-resume').onclick = resumeTest;
+  $('btn-learn').onclick = openLearn;
+  $('btn-learn-next').onclick = openLearn;
+  $('btn-learn-back').onclick = () => { show('start'); init(); };
+  $('btn-learn-test').onclick = start;
+  $('btn-export').onclick = exportDeck;
+  $('l-batch').onchange = openLearn;
   $('btn-retake').onclick = () => { show('start'); init(); };
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -284,7 +386,8 @@
     else if (screen === 'between' && k === ' ') { e.preventDefault(); nextBlock(); }
     else if (screen === 'start' && (k === ' ' || k === 'enter')) { e.preventDefault(); start(); }
   });
-  init();
+  window.addEventListener('hashchange', () => { if (location.hash === '#learn') openLearn(); });
+  init().then(() => { if (location.hash === '#learn') openLearn(); });
 })();
 </script>
 </body>

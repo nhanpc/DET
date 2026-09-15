@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import store
+from . import learn, store
 from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, Session
 from .bank import Bank, load_subbands
 
@@ -20,6 +20,7 @@ STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="DET vocabulary level test")
 SUBBANDS = load_subbands()
 BANK = Bank()
+SYNONYMS = learn.load_synonyms()
 # Unfinished sessions come back from disk so a closed tab or a restart does not lose a test.
 SESSIONS: dict[str, Session] = {d["id"]: Session.restore(d, SUBBANDS, BANK)
                                 for d in store.load_sessions() if not d["finished"]}
@@ -107,3 +108,30 @@ def result(sid: str):
     if not s.finished:
         raise HTTPException(409, "session not finished")
     return result_view(s)
+
+
+def learn_view(n: int) -> dict:
+    sessions = store.load_sessions()
+    scores = learn.subband_scores(sessions, SUBBANDS)
+    level, front = learn.frontier(scores)
+    stats = learn.word_stats(sessions)
+    history, trend = learn.level_history(store.load_levels())
+    counts = {k: 0 for k in ("repeat", "missed", "learned", "shaky", "known")}
+    for w in stats.values():
+        counts[w.status] += 1
+    return {"sessions": len(history), "history": history, "trend": trend, "level": level, "frontier": front,
+            "subbands": scores, "counts": counts, "batch": n,
+            "words": learn.study_list(stats, front, BANK.index, SYNONYMS, n)}
+
+
+@app.get("/api/learn")
+def learn_page(n: int = learn.BATCH):
+    return learn_view(max(1, min(n, 100)))
+
+
+@app.post("/api/learn/export")
+def learn_export(n: int = learn.BATCH):
+    words = learn_view(max(1, min(n, 100)))["words"]
+    path = learn.export_anki(words)
+    root = store.VOCAB.parent
+    return {"file": str(path.relative_to(root)) if path.is_relative_to(root) else str(path), "cards": len(words)}

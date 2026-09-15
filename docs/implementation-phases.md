@@ -91,6 +91,12 @@ Output: a level estimate in ~5 minutes, repeatable weekly. Status: done (issue #
 
 Goal: learn the current sub-band as word families.
 
+Status: the study list is in the app (issue #6, `app/learn.py`): it reads
+`vocab/tests/`, finds the frontier sub-band, orders repeat misses → frontier
+misses → other misses → slow answers → the rest of the frontier by rank, and
+exports the batch to `vocab/decks/<date>.txt` for Anki. Steps 1–4 below are
+the manual routine around it.
+
 1. `definition` and `example` already come from `build_dict.py`; optionally
    simplify them by hand for the current sub-band (short, simple English).
 2. `scripts/export_anki.py <subband>` → `vocab/decks/<subband>.txt`, one card

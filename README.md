@@ -103,6 +103,27 @@ holds `levels.csv` (one row per test), `results.csv` (per block),
 `sessions/*.json` (every item). An unfinished test is offered as *Resume*
 the next time you open the app. Schemas: [vocab/tests/README.md](vocab/tests/README.md).
 
+## What to learn
+
+*What to learn* (start page, result page, or `http://localhost:8000/#learn`)
+reads the whole history and turns it into a study list (issue #6):
+
+- **Frontier** = the next sub-band to master: the lowest sub-band you were
+  tested on and failed, at or just above your level. Scores are pooled over
+  reliable tests, each test weighing half as much as the one after it.
+- **Word status**, from every time a word was shown: `repeat` (missed twice,
+  still wrong), `missed`, `learned` (missed, then right — left out until
+  missed again), `shaky` (right but slower than 2× that test's median),
+  `known`.
+- **Study list order:** repeat → misses from the frontier sub-band → other
+  misses, newest first → shaky → the rest of the frontier sub-band by rank.
+  Each entry shows the family forms, definition, example and synonyms.
+- **Export to Anki** writes the batch to `vocab/decks/<date>.txt`
+  (tab-separated, one card per family, tag = sub-band + reason).
+
+Nothing is stored beyond the history: the statuses are recomputed from
+`vocab/tests/` every time.
+
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
 mirror that sub-band's headwords: `vocab/pseudowords.csv`.
@@ -132,7 +153,7 @@ DET/
 │   ├── relations.csv            # synonym / antonym / similar links between families
 │   ├── pseudowords.csv          # invented words for the yes/no test (British Lexicon Project)
 │   ├── my-words.csv             # words met in practice
-│   ├── decks/                   # Anki exports (one card per family)
+│   ├── decks/                   # Anki exports from the study list (one card per family)
 │   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json
 │   └── progress.md              # % known per sub-band → estimated level
 ├── app/                         # level-test app: FastAPI backend + static/index.html

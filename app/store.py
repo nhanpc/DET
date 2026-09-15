@@ -92,6 +92,8 @@ def load_sessions() -> list[dict]:
     for p in sorted(SESSIONS.glob("*.json")) if SESSIONS.exists() else []:
         d = json.loads(p.read_text(encoding="utf-8"))
         d.setdefault("finished", d.get("result") is not None)
+        for b in d["blocks"]:
+            b.setdefault("pos", len(b["items"]))
         out.append(d)
     return out
 
