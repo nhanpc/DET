@@ -44,3 +44,6 @@ data/raw/blp/*.txt
 # Design canvases: keep the artboard sources, not the 2 MB assembled pages
 design/**/*.html
 !design/**/*.dc.html
+
+# Anki exports from the Learn page: regenerated on demand, not tracked
+vocab/decks/
