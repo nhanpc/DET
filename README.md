@@ -188,7 +188,8 @@ changes; everything above the markers (target date, outside vocabulary
 estimates, the baseline rows) is hand-written and never touched. The same
 numbers come back from `GET /api/progress`, and the *What to learn* page
 draws the level chart once there are two or more points. Mock DET scores
-(`vocab/tests/mocks.csv`) are rendered by Phase 6 (issue #11).
+(`vocab/tests/mocks.csv`) are rendered into the same block as a *Mock tests*
+section — see *Weekly cycle* below.
 
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
@@ -249,6 +250,44 @@ flowchart LR
     T[Yes/No test on sub-band N] -->|"≥ 85%"| M[Mark N mastered] --> N1[Test sub-band N+1]
     T -->|"< 85%"| L[Learn sub-band N word families] --> R[Re-test after 1 week] --> T
 ```
+
+## Weekly cycle
+
+Phase 6 (issue #11) ties the pieces above into one routine: Monday level test
+→ Anki batch → daily drills → a full DET practice test every 1–2 weeks →
+Sunday review. The practice test is the one thing typed by hand: one row of
+`vocab/tests/mocks.csv` (`date, source, overall, literacy, comprehension,
+conversation, production, weakest, notes`; schema and the low-end rule in
+[vocab/tests/README.md](vocab/tests/README.md)). The free practice test gives
+only a range and no subscores, so record the **low end** as `overall`, leave
+the subscores blank, fill `weakest` from the self-review and put the range in
+`notes`. `scripts/report.py` then renders a *Mock tests* section into
+[vocab/progress.md](vocab/progress.md) — a chart of `overall` against the
+120 line, a table of the rows (the lowest subscore marked `←`, `official`
+rows in bold, the vocabulary level of the day beside each) and three lines
+that make the Sunday review a five-minute read, by three fixed rules:
+
+- **Trend:** `overall` of the last two test dates → `up` / `down` / `flat`;
+  `mock overdue` is appended when no row is dated within the last 14 days.
+- **Focus next week:** the lowest subscore of the latest row that has all
+  four, if that row is at most 28 days old (tie → the one that dropped most
+  since the previous row with subscores, then Literacy → Comprehension →
+  Conversation → Production); otherwise the `weakest` column of the latest
+  row; otherwise vocabulary, the frontier sub-band. The line names the drill
+  folders — Literacy = `read-and-complete/`, `writing/`; Comprehension =
+  `read-and-complete/`, `listen-and-type/`, `interactive/`; Conversation =
+  `listen-and-type/`, `speaking/`; Production = `writing/`, `speaking/` —
+  and next week gets one extra timed drill a day from them.
+- **Booking:** on the practice rows (`det-practice` and third-party mocks;
+  one value per date, the lowest when two sources share a day):
+  **Book the real test** when the last two dates are ≥ 120; `one more ≥ 120
+  to book` when only the last one is; otherwise `keep going` with the gap to
+  120. Any `official` row ≥ 120 is **Goal reached**.
+
+A same-day retake replaces the earlier row of the same source, and a
+malformed row (score not a multiple of 5, out of 10–160, bad date, unknown
+`weakest`) stops the report with its line number — nothing is skipped
+silently. The same numbers come back under `mocks` in `GET /api/progress`.
 
 ## Repository layout (planned)
 

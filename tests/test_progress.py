@@ -1,5 +1,7 @@
 """Progress tracking (issue #9): the report dict, the generated Markdown, the marker contract of
-vocab/progress.md, the Anki table, the CSV cross-check, the CLI and GET /api/progress."""
+vocab/progress.md, the Anki table, the CSV cross-check, the CLI and GET /api/progress. Mock tests (issue #11):
+the 5-row worked example of the issue, every branch of the focus and booking rules, validation, the section."""
+import importlib.util
 import sqlite3
 import subprocess
 import sys
@@ -108,6 +110,144 @@ def test_render_markdown_shape():
     assert "### Anki\n\n_No cards tagged" in progress.render_markdown(r, SUBBANDS)
 
 
+def mock_row(day, source, overall, lit="", comp="", conv="", prod="", weakest="", notes=""):
+    """A mocks.csv row as store.load_mocks() returns it (strings, blanks for missing subscores)."""
+    return {"date": day, "source": source, "overall": str(overall), "literacy": str(lit), "comprehension": str(comp),
+            "conversation": str(conv), "production": str(prod), "weakest": weakest, "notes": notes}
+
+
+MOCKS = [mock_row("2026-09-20", "det-practice", 95, weakest="conversation", notes="range 95–110"),
+         mock_row("2026-10-04", "mock-a", 105, 100, 110, 100, 110),
+         mock_row("2026-10-18", "det-practice", 120),
+         mock_row("2026-10-18", "det-practice", 125),                     # same-day retake replaces the row above
+         mock_row("2026-11-01", "det-practice", 120, weakest="production")]
+FOCUS = [("conversation", "weakest column"), ("literacy", "subscores of 2026-10-04"), ("literacy", "subscores of 2026-10-04"),
+         ("literacy", "subscores of 2026-10-04"), ("literacy", "subscores of 2026-10-04")]
+VERDICT = [("keep going", 25), ("keep going", 15), ("one more ≥ 120 to book", None), ("one more ≥ 120 to book", None),
+           ("Book the real test", None)]
+
+
+def test_mocks_worked_example():
+    """The issue's table: focus and verdict after every row, the trend, de-duplication, the vocab column."""
+    history = learn.level_history(fixture()[1])[0]
+    for i in range(1, 6):
+        m = progress.mocks_report(MOCKS[:i], history, date(2026, 11, 2))
+        assert (m["focus"]["subscore"], m["focus"]["reason"]) == FOCUS[i - 1], i
+        assert (m["verdict"], m["gap"]) == VERDICT[i - 1], i
+    assert m["focus"]["folders"] == progress.FOLDERS["literacy"] == ["read-and-complete/", "writing/"]
+    assert [(r["date"], r["source"], r["overall"]) for r in m["rows"]] == [
+        ("2026-09-20", "det-practice", 95), ("2026-10-04", "mock-a", 105), ("2026-10-18", "det-practice", 125),
+        ("2026-11-01", "det-practice", 120)]
+    assert m["series"] == [{"date": d, "overall": o} for d, o in
+                           (("2026-09-20", 95), ("2026-10-04", 105), ("2026-10-18", 125), ("2026-11-01", 120))]
+    assert m["trend"] == "down" and not m["overdue"]                         # 125 → 120; last row 1 day old
+    assert [r["vocab"] for r in m["rows"]] == ["90–105"] * 4                 # the 2026-09-10 reliable 4k-a test
+    assert m["rows"][0]["notes"] == "range 95–110" and m["rows"][1]["literacy"] == 100 and m["rows"][0]["literacy"] is None
+    # trend on the last two dates, not rows: after row 3 it is 105 → 120 = up; row 4 alone keeps it up
+    assert progress.mocks_report(MOCKS[:3], history, date(2026, 10, 19))["trend"] == "up"
+    # 28-day shelf life: dated 2026-11-02 the mock-a subscores are 29 days old and the weakest column takes over
+    late = MOCKS[:4] + [mock_row("2026-11-02", "det-practice", 120, weakest="production")]
+    f = progress.mocks_report(late, history, date(2026, 11, 2))["focus"]
+    assert (f["subscore"], f["reason"], f["folders"]) == ("production", "weakest column", ["writing/", "speaking/"])
+    # mock overdue: no row within 14 days before `generated`; no vocab column before the first reliable test
+    m = progress.mocks_report(MOCKS[:1], history, date(2026, 10, 5))
+    assert m["overdue"] and m["trend"] == "" and m["rows"][0]["vocab"] == "90–105"
+    assert not progress.mocks_report(MOCKS[:1], history, date(2026, 10, 4))["overdue"]
+    assert progress.mocks_report([mock_row("2026-08-01", "det-practice", 60)], history, date(2026, 8, 1))["rows"][0]["vocab"] == ""
+    m = progress.mocks_report([], history, date(2026, 11, 2))
+    assert m == {"rows": [], "series": [], "trend": "", "overdue": True, "verdict": "keep going", "gap": None,
+                 "focus": {"subscore": None, "folders": [], "reason": "no mocks"}}
+
+
+def test_mock_rules_every_branch():
+    rows = lambda *rs: progress.mock_rows(progress.parse_mocks(list(rs)))                       # noqa: E731
+    # Goal reached: any official row ≥ 120, whatever the practice rows say; an official row < 120 is just shown
+    official = mock_row("2026-11-08", "official", 125, 120, 125, 120, 130)
+    assert progress.mock_verdict(rows(*MOCKS[:2], official)) == ("Goal reached", None)
+    low = mock_row("2026-11-08", "official", 115, 110, 115, 120, 115)
+    assert progress.mock_verdict(rows(*MOCKS, low)) == ("Book the real test", None)
+    assert progress.mock_verdict(rows(*MOCKS[:2], low)) == ("keep going", 15)
+    # two rows ≥ 120 on one day are one date: not enough to book; two sources on a day count the lower overall
+    same = rows(mock_row("2026-10-18", "det-practice", 120), mock_row("2026-10-18", "mock-a", 125))
+    assert progress.mock_verdict(same) == ("one more ≥ 120 to book", None) and progress.mock_dates(same) == [("2026-10-18", 120)]
+    mixed = rows(mock_row("2026-10-18", "det-practice", 125), mock_row("2026-10-18", "mock-a", 115),
+                 mock_row("2026-11-01", "det-practice", 120))
+    assert progress.mock_verdict(mixed) == ("one more ≥ 120 to book", None)
+    # an official row on a practice day is kept beside it and left out of the practice dates
+    both = rows(mock_row("2026-10-18", "det-practice", 125), mock_row("2026-10-18", "official", 100))
+    assert len(both) == 2 and progress.mock_dates(both) == [("2026-10-18", 100)]
+    assert progress.mock_dates(both, practice_only=True) == [("2026-10-18", 125)]
+    # focus tie-break: the biggest drop since the previous row with subscores, then table order
+    a, b = mock_row("2026-10-04", "mock-a", 105, 110, 110, 120, 110), mock_row("2026-10-11", "mock-a", 105, 100, 105, 100, 110)
+    assert progress.mock_focus(rows(a, b))["subscore"] == "conversation"       # 120 → 100 beats 110 → 100
+    c = mock_row("2026-10-11", "mock-a", 105, 100, 105, 100, 100)
+    assert progress.mock_focus(rows(a, c))["subscore"] == "conversation"       # production dropped 10, conversation 20
+    d = mock_row("2026-10-11", "mock-a", 105, 100, 105, 100, 110)
+    assert progress.mock_focus(rows(mock_row("2026-10-04", "mock-a", 105, 110, 110, 110, 110), d))["subscore"] == "literacy"
+    assert progress.mock_focus(rows(d))["subscore"] == "literacy"              # no previous row → table order
+    # no weakest: rows exist, the latest has neither subscores nor a weakest, and no fresh subscores
+    f = progress.mock_focus(rows(MOCKS[1], mock_row("2026-11-02", "det-practice", 110)))
+    assert f == {"subscore": None, "folders": [], "reason": "no weakest"}
+    # a weakest typed on a row that also has fresh subscores: the subscores win
+    e = mock_row("2026-10-11", "mock-a", 105, 100, 105, 110, 110, weakest="production")
+    assert progress.mock_focus(rows(e))["reason"] == "subscores of 2026-10-11"
+
+
+def test_parse_mocks_rejects_a_bad_row_with_its_line():
+    ok = progress.parse_mocks(MOCKS)
+    assert len(ok) == 5 and ok[1]["production"] == 110 and ok[0]["weakest"] == "conversation" and ok[2]["weakest"] == ""
+    bad = [(mock_row("2026-9-20", "det-practice", 95), "line 3: date = '2026-9-20', expected YYYY-MM-DD"),
+           (mock_row("20261004", "det-practice", 95), "line 3: date"),
+           (mock_row("2026-10-04", "", 95), "line 3: source is empty"),
+           (mock_row("2026-10-04", "det-practice", ""), "line 3: overall = '', expected a multiple of 5 in 10–160"),
+           (mock_row("2026-10-04", "det-practice", 102), "line 3: overall = '102'"),
+           (mock_row("2026-10-04", "det-practice", 165), "line 3: overall = '165'"),
+           (mock_row("2026-10-04", "det-practice", 5), "line 3: overall = '5'"),
+           (mock_row("2026-10-04", "mock-a", 105, 100, 111, 100, 110), "line 3: comprehension = '111'"),
+           (mock_row("2026-10-04", "det-practice", 105, weakest="reading"), "line 3: weakest = 'reading', expected one of")]
+    for row, msg in bad:
+        with pytest.raises(ValueError, match=msg):
+            progress.parse_mocks([MOCKS[0], row])
+    with pytest.raises(ValueError, match="line 2: "):
+        progress.parse_mocks([mock_row("2026-10-04", "det-practice", "abc")])
+    assert progress.parse_mocks([{"date": " 2026-10-04 ", "source": "x", "overall": " 105 "}])[0]["overall"] == 105
+
+
+def test_mock_section_markdown():
+    sessions, levels = fixture()
+    r = progress.build(sessions, levels, SUBBANDS, date(2026, 11, 2), mocks=MOCKS)
+    r["anki"] = []
+    md = progress.render_markdown(r, SUBBANDS)
+    section = md.split("\n### Mock tests\n\n")[1]
+    assert md.index("### Anki") < md.index("### Mock tests") and md.endswith("- Booking: **Book the real test**\n")
+    assert section.startswith(progress.mock_chart(r["mocks"]["series"]) + "\n\n| Date | Source | Overall | Literacy | "
+                              "Comprehension | Conversation | Production | Weakest | Vocab |\n|---|")
+    assert progress.mock_chart(r["mocks"]["series"]).split("\n") == [
+        "```mermaid", "xychart-beta", '    title "Mock tests: overall"', '    x-axis ["09-20", "10-04", "10-18", "11-01"]',
+        '    y-axis "DET" 60 --> 160', "    line [95, 105, 125, 120]", "    line [120, 120, 120, 120]", "```"]
+    assert "| 2026-09-20 | det-practice | 95 |  |  |  |  | conversation | 90–105 |" in section
+    assert "| 2026-10-04 | mock-a | 105 | 100 ← | 110 | 100 ← | 110 |  | 90–105 |" in section
+    assert "| 2026-10-18 | det-practice | 125 |" in section and "| 120 |  |  |  |  |  | 90–105 |" not in section
+    assert section.endswith("\n- Trend: down\n- Focus next week: Literacy → read-and-complete/, writing/ (subscores of 2026-10-04)\n"
+                            "- Booking: **Book the real test**\n")
+    # official rows in bold, Goal reached in bold, the y-axis follows a low score
+    r = progress.build(sessions, levels, SUBBANDS, date(2026, 11, 9),
+                       mocks=MOCKS[:1] + [mock_row("2026-11-08", "official", 120, 115, 125, 120, 130)])
+    md = progress.render_markdown(r, SUBBANDS)
+    assert "| **2026-11-08** | **official** | **120** | **115 ←** | **125** | **120** | **130** |  | **90–105** |" in md
+    assert md.endswith("- Booking: **Goal reached**\n") and "(subscores of 2026-11-08)" in md
+    r = progress.build([], [], SUBBANDS, date(2026, 11, 2), mocks=[mock_row("2026-10-25", "det-practice", 45)])
+    md = progress.render_markdown(r, SUBBANDS)
+    assert '    y-axis "DET" 40 --> 160' in md and "|  |  |  |  |  |  |\n" in md
+    assert md.endswith("- Trend: —\n- Focus next week: vocabulary → 1k-a (no weakest)\n- Booking: keep going (gap 75)\n")
+    # no rows: a hint instead of the chart, `mock overdue`, vocabulary focus, no gap
+    md = progress.render_markdown(progress.build([], [], SUBBANDS, date(2026, 11, 2)), SUBBANDS)
+    assert md.endswith("### Mock tests\n\n_No mock yet — take the free practice test and type it as row 1 of vocab/tests/mocks.csv._\n\n"
+                       "- Trend: — · mock overdue\n- Focus next week: vocabulary → 1k-a (no mocks)\n- Booking: keep going\n")
+    r = progress.build([], [], SUBBANDS, date(2026, 11, 2), mocks=MOCKS[:1])
+    assert "- Trend: — · mock overdue\n- Focus next week: Conversation → listen-and-type/, speaking/ (weakest column)\n" in progress.render_markdown(r, SUBBANDS)
+
+
 HAND = "# Progress\n\nTarget: 120.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n"
 BLOCK = "## Progress (generated)\n_Generated by scripts/report.py on 2026-09-16 from vocab/tests/. Do not edit._\n\nbody\n"
 
@@ -211,13 +351,41 @@ def test_cli_rewrites_only_the_generated_block(tmp_path):
     assert run("--check").returncode == 0
 
 
+def test_cli_stops_on_a_bad_mock_row(tmp_path, monkeypatch, capsys):
+    spec = importlib.util.spec_from_file_location("report", SCRIPT)
+    report = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(report)
+    out = tmp_path / "progress.md"
+    monkeypatch.setattr(store, "MOCKS", tmp_path / "mocks.csv")
+    assert report.main(["--out", str(out)]) == 0 and "_No mock yet" in out.read_text(encoding="utf-8")   # no file = no rows
+    lines = [",".join(store.MOCKS_HEADER), "2026-09-20,det-practice,95,,,,,conversation,range 95–110",
+             "2026-10-04,det-practice,102,,,,,,"]
+    store.MOCKS.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    before = out.read_text(encoding="utf-8")
+    assert report.main(["--out", str(out)]) == 1 and out.read_text(encoding="utf-8") == before
+    assert capsys.readouterr().err == f"{store.MOCKS}: line 3: overall = '102', expected a multiple of 5 in 10–160 — nothing written\n"
+    store.MOCKS.write_text("\n".join(lines[:2]) + "\n", encoding="utf-8")
+    assert report.main(["--out", str(out)]) == 0
+    assert "| 2026-09-20 | det-practice | 95 |  |  |  |  | conversation |" in out.read_text(encoding="utf-8")
+
+
 def test_api_progress_matches_learn(tmp_path, monkeypatch):
-    for name in ("SESSIONS", "RESULTS", "MISSES", "LEVELS"):
+    for name in ("SESSIONS", "RESULTS", "MISSES", "LEVELS", "MOCKS"):
         monkeypatch.setattr(store, name, tmp_path / getattr(store, name).name)
     monkeypatch.setattr(learn, "MY_WORDS", tmp_path / "my-words.csv")
     c = TestClient(main.app)
     p = c.get("/api/progress").json()
     assert p["tests"] == 0 and p["level"] is None and p["series"] == [] and p["anki"] is None
+    assert p["mocks"]["rows"] == [] and p["mocks"]["verdict"] == "keep going" and p["mocks"]["focus"]["reason"] == "no mocks"
+    # the mock rows ride on the same dict; a bad row is a 422 naming the line
+    store.MOCKS.write_text(",".join(store.MOCKS_HEADER) + "\n2026-09-20,det-practice,95,,,,,conversation,\n", encoding="utf-8")
+    m = c.get("/api/progress").json()["mocks"]
+    assert m["rows"][0]["overall"] == 95 and m["rows"][0]["literacy"] is None and m["focus"]["subscore"] == "conversation"
+    assert m["gap"] == 25 and m["overdue"] == (date.today() > date(2026, 10, 4))
+    store.MOCKS.write_text(",".join(store.MOCKS_HEADER) + "\n2026-09-20,det-practice,95,,,,,reading,\n", encoding="utf-8")
+    r = c.get("/api/progress")
+    assert r.status_code == 422 and r.json()["detail"].startswith("vocab/tests/mocks.csv: line 2: weakest = 'reading'")
+    store.MOCKS.unlink()
     sid = c.post("/api/session").json()["session"]
     status = None
     while status != "finished":

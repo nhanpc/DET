@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Rewrite the generated block of vocab/progress.md from the level-test history (app.progress, issue nhanpc/DET#9).
+"""Rewrite the generated block of vocab/progress.md from the level-test history (app.progress, issue nhanpc/DET#9)
+and the hand-typed mock tests in vocab/tests/mocks.csv (issue #11: chart, table, focus and the booking verdict).
 
     python3 scripts/report.py                       # vocab/tests/ → vocab/progress.md, prints the Now line
     python3 scripts/report.py --print               # the generated Markdown on stdout, nothing written
@@ -8,7 +9,8 @@
     python3 scripts/report.py --check               # exit 1 when results.csv / levels.csv disagree with the session JSON
 
 Only the text between `<!-- generated:start -->` and `<!-- generated:end -->` changes; the hand-written part
-above them is never touched (the rule table is in issue #7 § 6). Run it after every test and commit.
+above them is never touched (the rule table is in issue #7 § 6). Run it after every test, after typing a mock
+row, and at the Sunday review; then commit. A malformed mocks.csv row stops it (exit 1) with the line number.
 """
 from __future__ import annotations
 
@@ -41,7 +43,12 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(problems) if problems else "levels.csv and results.csv agree with the session JSON", file=sys.stderr)
         if problems:
             return 1
-    report = progress.build(sessions, levels, subbands)
+    try:
+        report = progress.build(sessions, levels, subbands, mocks=store.load_mocks())
+    except ValueError as e:
+        path = store.MOCKS.relative_to(ROOT) if store.MOCKS.is_relative_to(ROOT) else store.MOCKS
+        print(f"{path}: {e} — nothing written", file=sys.stderr)
+        return 1
     if a.anki:
         try:
             with sqlite3.connect(f"file:{a.anki}?mode=ro", uri=True) as conn:

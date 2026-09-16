@@ -4,8 +4,10 @@ levels.csv rows, render_markdown() turns it into text, splice() puts that text b
 progress.md. scripts/report.py does the I/O; main.py serves the same dict as GET /api/progress and builds
 the Learn page from it, so the report and the app cannot disagree.
 
-Everything comes from vocab/tests/ (sessions/*.json, levels.csv): the hand-written half of progress.md is
-never parsed. Mock tests (vocab/tests/mocks.csv) are issue #11, which appends its section after **Anki**.
+Everything comes from vocab/tests/ (sessions/*.json, levels.csv, mocks.csv): the hand-written half of
+progress.md is never parsed. Mock tests (issue #11, Phase 6) are the hand-typed mocks.csv rows: parse_mocks()
+validates them, mock_rows() keeps the last row per date and source, mock_focus() picks next week's drill
+focus, mock_verdict() answers "book the real test yet?" — the *Mock tests* section after **Anki**.
 """
 from __future__ import annotations
 
@@ -25,6 +27,16 @@ TARGET = 120                # the DET score the chart title points at
 MATURE = 21                 # Anki: a card with an interval of this many days or more is mature
 REVIEW_DAYS = 7             # Anki: the review-count window
 DASH = "—"
+# Mock tests (#11): the four subscores in README order — the focus tie-break — and each one's drill folders
+SUBSCORES = ("literacy", "comprehension", "conversation", "production")
+FOLDERS = {"literacy": ["read-and-complete/", "writing/"],                                   # R + W
+           "comprehension": ["read-and-complete/", "listen-and-type/", "interactive/"],      # R + L
+           "conversation": ["listen-and-type/", "speaking/"],                                # L + S
+           "production": ["writing/", "speaking/"]}                                          # W + S
+OFFICIAL = "official"       # `source` of a certified test: shown in bold, gates `Goal reached`, never the booking verdict
+SCALE = range(10, 161, 5)   # the DET scale: 10–160 in steps of 5
+SUBSCORE_DAYS = 28          # subscores older than this (before the latest mock) no longer pick the focus
+MOCK_DAYS = 14              # no mock within this many days before `generated` → mock overdue
 
 
 def det_range(low: Optional[int], high: Optional[int]) -> str:
@@ -44,9 +56,120 @@ def level_series(history: list[dict], by: dict[str, Subband]) -> list[dict]:
     return [days[d] for d in sorted(days)]
 
 
-def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None) -> dict:
-    """The report: pooled level and frontier (learn.frontier), the sub-band rows, the word-status counts and
-    the chart series. `anki` stays None; scripts/report.py fills it from anki_stats() when asked."""
+def parse_mocks(rows: list[dict]) -> list[dict]:
+    """mocks.csv rows (strings, store.load_mocks()) → typed rows in file order: scores int or None, `weakest`
+    "" or a SUBSCORES name. A bad row raises ValueError naming its line (the header is line 1): `date` not
+    YYYY-MM-DD, `source` empty, `overall` missing or any score not a multiple of 5 in 10–160, `weakest` not a
+    subscore name. Nothing is skipped — the report stops instead of hiding a typo."""
+    out = []
+    for n, r in enumerate(rows, start=2):
+        cell = lambda k: (r.get(k) or "").strip()                                          # noqa: E731
+
+        def score(k: str) -> Optional[int]:
+            v = cell(k)
+            if not v and k != "overall":
+                return None
+            if not v.isdigit() or int(v) not in SCALE:
+                raise ValueError(f"line {n}: {k} = {v!r}, expected a multiple of 5 in 10–160")
+            return int(v)
+
+        try:
+            if len(cell("date")) != 10:                     # fromisoformat also takes 20260920 on 3.11+
+                raise ValueError
+            day = date.fromisoformat(cell("date"))
+        except ValueError:
+            raise ValueError(f"line {n}: date = {cell('date')!r}, expected YYYY-MM-DD") from None
+        if not cell("source"):
+            raise ValueError(f"line {n}: source is empty")
+        if cell("weakest") and cell("weakest") not in SUBSCORES:
+            raise ValueError(f"line {n}: weakest = {cell('weakest')!r}, expected one of {', '.join(SUBSCORES)} or blank")
+        out.append({"date": day.isoformat(), "source": cell("source"), "overall": score("overall"),
+                    **{k: score(k) for k in SUBSCORES}, "weakest": cell("weakest"), "notes": cell("notes")})
+    return out
+
+
+def mock_rows(parsed: list[dict]) -> list[dict]:
+    """The last row per date and source (a same-day retake replaces the earlier one; an `official` row never
+    replaces a practice row), by date, file order within a day — the rows every mock rule runs on."""
+    last: dict[tuple[str, str], dict] = {}
+    for r in parsed:
+        last.pop((r["date"], r["source"]), None)
+        last[(r["date"], r["source"])] = r
+    return sorted(last.values(), key=lambda r: r["date"])
+
+
+def mock_dates(rows: list[dict], practice_only: bool = False) -> list[tuple[str, int]]:
+    """(date, overall) per date, oldest first; two sources on one day count once, with the lower overall."""
+    by: dict[str, int] = {}
+    for r in rows:
+        if not (practice_only and r["source"] == OFFICIAL):
+            by[r["date"]] = min(by.get(r["date"], r["overall"]), r["overall"])
+    return sorted(by.items())
+
+
+def has_subscores(r: dict) -> bool:
+    return all(r[s] is not None for s in SUBSCORES)
+
+
+def mock_focus(rows: list[dict]) -> dict:
+    """Next week's extra drill slot: {"subscore", "folders", "reason"}. 1. The lowest subscore of the latest row
+    that has all four, if it is ≤ SUBSCORE_DAYS before the latest row — a tie goes to the one that dropped most
+    since the previous row with subscores, then to SUBSCORES order. 2. Else the latest row's `weakest`.
+    3. Else vocabulary (subscore None): `no mocks` without rows, `no weakest` when the latest has neither."""
+    if not rows:
+        return {"subscore": None, "folders": [], "reason": "no mocks"}
+    latest, full = rows[-1], [r for r in rows if has_subscores(r)]
+    if full and (date.fromisoformat(latest["date"]) - date.fromisoformat(full[-1]["date"])).days <= SUBSCORE_DAYS:
+        r, prev = full[-1], full[-2] if len(full) > 1 else None
+        low = [s for s in SUBSCORES if r[s] == min(r[s] for s in SUBSCORES)]
+        if len(low) > 1 and prev:
+            drop = {s: prev[s] - r[s] for s in low}
+            low = [s for s in low if drop[s] == max(drop.values())]
+        return {"subscore": low[0], "folders": FOLDERS[low[0]], "reason": f"subscores of {r['date']}"}
+    if latest["weakest"]:
+        return {"subscore": latest["weakest"], "folders": FOLDERS[latest["weakest"]], "reason": "weakest column"}
+    return {"subscore": None, "folders": [], "reason": "no weakest"}
+
+
+def mock_verdict(rows: list[dict]) -> tuple[str, Optional[int]]:
+    """Book the real test yet? (verdict, gap). `Goal reached` on any official row ≥ TARGET; the rest on the
+    practice dates of mock_dates(): `Book the real test` when the last two are ≥ TARGET, `one more ≥ 120 to
+    book` when only the last is (or there is only one), else `keep going` with the gap TARGET − last overall."""
+    if any(r["source"] == OFFICIAL and r["overall"] >= TARGET for r in rows):
+        return "Goal reached", None
+    dates = mock_dates(rows, practice_only=True)
+    if not dates:
+        return "keep going", None
+    if dates[-1][1] < TARGET:
+        return "keep going", TARGET - dates[-1][1]
+    if len(dates) > 1 and dates[-2][1] >= TARGET:
+        return "Book the real test", None
+    return f"one more ≥ {TARGET} to book", None
+
+
+def mocks_report(mocks: list[dict], history: list[dict], today: date) -> dict:
+    """The `mocks` key of build(): the de-duplicated rows (+ `vocab`, the DET range of the latest reliable level
+    test on or before the mock), the chart series (one point per date), the trend of the last two dates (the
+    level_history() rule), `overdue`, the focus and the verdict. Raises ValueError on a bad row."""
+    rows = mock_rows(parse_mocks(mocks))
+    reliable = [h for h in history if h["reliable"] and h["det_low"] is not None]
+    for r in rows:
+        prior = [h for h in reliable if h["date"] <= r["date"]]
+        r["vocab"] = det_range(prior[-1]["det_low"], prior[-1]["det_high"]) if prior else ""
+    dates = mock_dates(rows)
+    last = [o for _, o in dates[-2:]]
+    trend = "" if len(last) < 2 else "up" if last[1] > last[0] else "down" if last[1] < last[0] else "flat"
+    overdue = not rows or date.fromisoformat(rows[-1]["date"]) < today - timedelta(days=MOCK_DAYS)
+    verdict, gap = mock_verdict(rows)
+    return {"rows": rows, "series": [{"date": d, "overall": o} for d, o in dates], "trend": trend,
+            "overdue": overdue, "focus": mock_focus(rows), "verdict": verdict, "gap": gap}
+
+
+def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None,
+          mocks: Optional[list[dict]] = None) -> dict:
+    """The report: pooled level and frontier (learn.frontier), the sub-band rows, the word-status counts, the
+    chart series and the mock tests (mocks_report() on `mocks`, the store.load_mocks() rows; None = no rows).
+    `anki` stays None; scripts/report.py fills it from anki_stats() when asked."""
     by = {sb.name: sb for sb in subbands}
     scores = learn.subband_scores(sessions, subbands)
     level, front = learn.frontier(scores)
@@ -55,14 +178,16 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
     sb = by.get(level) if level else None
     rows = [{"subband": s["subband"], "cefr": by[s["subband"]].cefr,
              "det": det_range(by[s["subband"]].det_low, by[s["subband"]].det_high), **s} for s in scores]
-    return {"generated": (today or date.today()).isoformat(),
+    today = today or date.today()
+    return {"generated": today.isoformat(),
             "tests": len(history), "reliable_tests": len(reliable),
             "no_level": sum(1 for h in reliable if h["level"] is None),      # reliable, but nothing mastered
             "level": level, "frontier": front, "last_level": reliable[-1]["level"] if reliable else None,
             "cefr": sb.cefr if sb else None, "det_low": sb.det_low if sb else None,
             "det_high": sb.det_high if sb else None, "trend": trend,
             "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions)),
-            "series": level_series(history, by), "anki": None}
+            "series": level_series(history, by), "anki": None,
+            "mocks": mocks_report(mocks or [], history, today)}
 
 
 def now_line(r: dict) -> str:
@@ -94,9 +219,44 @@ def chart(series: list[dict], subbands: list[Subband]) -> str:
                       f"    line [{', '.join(str(p['order']) for p in series)}]", "```"])
 
 
+def mock_chart(series: list[dict]) -> str:
+    """Mermaid xychart of the overall score per date (`09-20` labels) with a flat TARGET line for the gap."""
+    lo = min(60, min(p["overall"] for p in series) // 10 * 10)
+    labels = ", ".join(f'"{p["date"][5:]}"' for p in series)
+    return "\n".join(["```mermaid", "xychart-beta", '    title "Mock tests: overall"', f"    x-axis [{labels}]",
+                      f'    y-axis "DET" {lo} --> {SCALE[-1]}', f"    line [{', '.join(str(p['overall']) for p in series)}]",
+                      f"    line [{', '.join([str(TARGET)] * len(series))}]", "```"])
+
+
+def mock_lines(m: dict, frontier: str) -> list[str]:
+    """The *Mock tests* section body: the chart and the table when there are rows (official rows in bold, `←`
+    on the lowest subscore of a row that has all four), then the trend (+ `mock overdue`), the focus with its
+    reason and the booking verdict."""
+    md = []
+    if m["rows"]:
+        lines = []
+        for r in m["rows"]:
+            low = min(r[s] for s in SUBSCORES) if has_subscores(r) else None
+            cells = [r["date"], r["source"], r["overall"],
+                     *["" if r[s] is None else f"{r[s]} ←" if r[s] == low else r[s] for s in SUBSCORES],
+                     r["weakest"], r["vocab"]]
+            lines.append([f"**{c}**" if c != "" and r["source"] == OFFICIAL else c for c in cells])
+        md += [mock_chart(m["series"]), "", table(["Date", "Source", "Overall", *[s.capitalize() for s in SUBSCORES],
+                                                   "Weakest", "Vocab"], lines), ""]
+    else:
+        md += ["_No mock yet — take the free practice test and type it as row 1 of vocab/tests/mocks.csv._", ""]
+    f = m["focus"]
+    focus = f"{f['subscore'].capitalize()} → {', '.join(f['folders'])}" if f["subscore"] else f"vocabulary → {frontier}"
+    verdict = m["verdict"] if m["gap"] is None else f"{m['verdict']} (gap {m['gap']})"
+    if m["verdict"] in ("Goal reached", "Book the real test"):
+        verdict = f"**{verdict}**"
+    return md + [f"- Trend: {m['trend'] or DASH}" + (" · mock overdue" if m["overdue"] else ""),
+                 f"- Focus next week: {focus} ({f['reason']})", f"- Booking: {verdict}"]
+
+
 def render_markdown(r: dict, subbands: list[Subband]) -> str:
-    """Everything between the markers, HEADING first, in the order fixed in #9. Ends with a newline.
-    #11 appends its *Mock tests* section after **Anki**."""
+    """Everything between the markers, HEADING first, in the order fixed in #9, then the *Mock tests* section
+    of #11 after **Anki**. Ends with a newline."""
     md = [HEADING, GENERATED.format(date=r["generated"]), "", "### Now", "", now_line(r), "", "### Sub-bands", ""]
     pct = lambda x: f"{100 * x:.0f} %" if x is not None else DASH                          # noqa: E731
     md.append(table(["Sub-band", "CEFR", "DET", "Blocks", "Known", "Score", "Status"],
@@ -123,6 +283,7 @@ def render_markdown(r: dict, subbands: list[Subband]) -> str:
         md.append(table(["Sub-band", "Cards", "Mature", f"Reviews {REVIEW_DAYS}d", "Lapses"],
                         [[a["subband"], a["cards"], a["mature"], a["reviews"], a["lapses"]] for a in r["anki"]])
                   if r["anki"] else "_No cards tagged with a sub-band yet._")
+    md += ["", "### Mock tests", "", *mock_lines(r["mocks"], r["frontier"])]
     return "\n".join(md) + "\n"
 
 

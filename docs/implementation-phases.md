@@ -218,11 +218,41 @@ entries from every drill.
 
 ## Phase 6 — Mock tests & review
 
-Goal: confirm 120 before booking.
+Goal: confirm 120 before booking. Specified in issue #11.
 
 - Full DET practice test every 1–2 weeks; log score + subscores.
 - Review the weakest subscore each week and shift drill time to it.
 - Book the real test when two consecutive practice tests are ≥ 120.
+
+Status: the rules and the report are done (#11); README § *Weekly cycle* is
+the user-facing summary. The mocks themselves are manual: one hand-typed row
+of `vocab/tests/mocks.csv` per practice test (schema and the low-end rule in
+`vocab/tests/README.md`; `app/store.py:MOCKS_HEADER` is the source of
+truth), then `scripts/report.py` renders the *Mock tests* section into the
+generated block of `vocab/progress.md` after *Anki*: a chart of `overall`
+against the 120 line, the de-duplicated rows (last row per date and
+source), and three lines — trend (+ `mock overdue` after 14 days), the focus
+for next week with its reason (fresh subscores ≤ 28 days old → the lowest
+one; else the `weakest` column; else vocabulary) and the booking verdict
+(`Goal reached` on an `official` row ≥ 120; `Book the real test` when the
+last two practice dates are ≥ 120; `one more ≥ 120 to book`; `keep going`
+plus the gap). `app/progress.py` holds the rules, `tests/test_progress.py`
+the worked example from the issue; `GET /api/progress` carries the same
+`mocks` dict.
+
+```mermaid
+flowchart TD
+    A["Monday: yes/no level test in the app<br/>the Re-test button of #8"] --> B[What to learn → Anki batch]
+    B --> C["Daily drills: 1 speaking + 1 writing,<br/>cloze / dictation 3× a week"]
+    C --> D{"Mock due?<br/>≥ 7 days since the last row"}
+    D -->|no| G
+    D -->|yes| E["Full practice test → one row in mocks.csv"]
+    E --> G["Sunday review: scripts/report.py → progress.md"]
+    G --> I["Focus line: next week the extra drill slot<br/>goes to the weakest subscore's two skills"]
+    I --> J{Booking verdict}
+    J -->|Book the real test| K[Book it]
+    J -->|otherwise| A
+```
 
 ## Not planned (yet)
 

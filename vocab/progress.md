@@ -111,4 +111,12 @@ xychart-beta
 | 1k-a | 1k-b | 2k-a | 2k-b | 3k-a | 3k-b | 4k-a | 4k-b | 5k-a | 5k-b | 6k-a | 6k-b |
 
 _Not on the chart: 2 earlier on a day with more than one test._
+
+### Mock tests
+
+_No mock yet — take the free practice test and type it as row 1 of vocab/tests/mocks.csv._
+
+- Trend: — · mock overdue
+- Focus next week: vocabulary → 4k-a (no mocks)
+- Booking: keep going
 <!-- generated:end -->

@@ -178,8 +178,12 @@ def learn_view(n: int) -> dict:
 
 @app.get("/api/progress")
 def progress_page():
-    """The report dict scripts/report.py renders into vocab/progress.md (no Anki)."""
-    return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS)
+    """The report dict scripts/report.py renders into vocab/progress.md (no Anki), mock tests included;
+    a malformed mocks.csv row is a 422 naming the line (#11), the same message the script prints."""
+    try:
+        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks())
+    except ValueError as e:
+        raise HTTPException(422, f"vocab/tests/mocks.csv: {e}")
 
 
 @app.get("/api/learn")

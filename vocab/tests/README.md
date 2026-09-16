@@ -10,7 +10,7 @@ One session = one adaptive yes/no test; the `session` column joins the files.
 | `results.csv` | finished block | at the end of each block |
 | `misses.csv` | wrong answer | at the end of each block |
 | `levels.csv` | finished session | when the test stops |
-| `mocks.csv` | full DET practice test | by hand, after the test (issue #11 owns the schema) |
+| `mocks.csv` | full DET practice test | by hand, after the test (issue #11 owns the schema; `scripts/report.py` renders it) |
 
 ## `results.csv`
 
@@ -50,7 +50,9 @@ Only the word is stored; join `kind = miss` rows to `vocab/index.csv` on
 ## `mocks.csv`
 
 Hand-typed, one row per full DET practice test (the baseline from issue #7
-is row 1; the rules and the report that renders it are issue #11).
+is row 1; the rules and the report that renders it are issue #11). The
+header is `app/store.py:MOCKS_HEADER`; `scripts/report.py` validates every
+row when it runs and stops with the line number on a bad one.
 
 | column | meaning |
 |--------|---------|
@@ -65,7 +67,25 @@ The free practice test reports only an estimated **range** for the overall
 score and no subscores: record the **low end** as `overall` (the booking rule
 must not pass on the optimistic end), leave the four subscores blank, fill
 `weakest` from the self-review and put the full range in `notes`. Retaking
-the test on the same day gets a second row with the same date.
+the test on the same day gets a second row with the same date; the report
+keeps the **last row per date and `source`**, so the retake replaces the
+first attempt and an `official` row never replaces a `det-practice` row
+taken the same day.
+
+Subscores come only from `official` rows and third-party mocks that report
+them. The certified test reports eight (Reading, Writing, Listening,
+Speaking and the four integrated ones): store only the integrated four —
+the focus rule needs one weakest subscore — and put the skill scores in
+`notes`. An `official` row ≥ 120 means the goal is reached; below 120 it is
+shown like any other row but left out of the booking verdict, which runs on
+practice rows only (README § *Weekly cycle* has the three rules).
+
+Validation (`app/progress.py:parse_mocks()`): `date` is `YYYY-MM-DD`,
+`source` is non-empty, `overall` is required and a multiple of 5 in 10–160,
+the four subscores are blank or the same, `weakest` is blank or one of
+`literacy`, `comprehension`, `conversation`, `production`. Nothing is
+skipped: a bad row fails the report (and `GET /api/progress`) with its line
+number, the header being line 1.
 
 ## `sessions/<id>.json`
 
