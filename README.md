@@ -223,13 +223,23 @@ values in [docs/det-format.md](docs/det-format.md).
   practice page shows the pool's size, and a my-words row is closed by
   practice once its word was hit on two different days
   ([practice/README.md](practice/README.md) § *Which item comes next*).
-- **Read and Complete** (`read-and-complete`): a C-test cut from a
-  `vocab/senses.csv` example of a pool family — every second eligible
-  word loses its second half (`He ski____ a row in t__ text a__ so the
-  sent____ was incompre________`), 2–5 blanks, 1 minute; *Passage mode*
-  does the same to a hand-pasted 50–80-word passage from
-  `practice/read-and-complete/passages/`, 3 minutes, first sentence intact.
-  Scored per blank; a sentence is not shown twice in a week.
+- **Read and Complete** (`read-and-complete`): the DET's C-test on a
+  50–80-word passage — every second eligible word after the first sentence
+  loses its second half (`He ski____ a row in t__ text a__ so the sent____
+  was incompre________`), 5 blanks, 3 minutes — drawn from a bank of 440
+  Simple English Wikipedia passages (`practice/read-and-complete/passages/`,
+  CC BY-SA, fetched and filtered by `scripts/passages.py`, reviewed by hand)
+  whose `b_text` lies within ±0.6 of your θ, a passage that holds one of
+  your priority words preferred and that word always among the blanks.
+  `credit = correct ÷ blanks` moves θ; every blank is a `hit`, a `spelling`
+  slip (one letter off) or a `vocabulary` miss for its family. *Sentence
+  mode* (1 minute) cuts a `vocab/senses.csv` example of a pool family the
+  same way. A passage is not shown twice in 30 days, a sentence in 7.
+- **Fill in the Blanks** (`fill-in-the-blanks`): one sentence from the
+  dictation bank near your θ, one word missing but for its first third
+  (`te____` for *tenant*), 20 seconds, exact match — the DET item, not a
+  C-test; the missing word is a priority word first. Credit 1 or 0 moves θ;
+  the event is the word's `hit` / `spelling` / `vocabulary`.
 - **Listen and Type** (`listen-and-type`): a 6–14-word sentence whose
   difficulty `b_text` ([docs/sentences.md](docs/sentences.md)) lies within
   ±0.6 of your θ (the frontier sub-band before the first test), read by an
@@ -258,9 +268,10 @@ values in [docs/det-format.md](docs/det-format.md).
   the sentence as the note, so the study list and the Anki export
   (`<subband> my-words`) pick them up without another step.
 - Every attempt is one row of `practice/attempts.csv` (`date, attempt, task,
-  item, subband, seconds, timed_out, score, self, words, errors, file`); the
-  start page shows today's count per task. Routine: one speaking and one
-  writing drill a day, cloze and dictation three times a week.
+  item, subband, seconds, timed_out, score, self, words, errors, file, theta,
+  b, events`); the start page shows today's count per task. Routine: one
+  speaking and one writing drill a day, cloze, fill-in and dictation three
+  times a week.
 
 ```bash
 .venv/bin/pip install -r requirements.txt   # adds edge-tts
@@ -268,8 +279,10 @@ values in [docs/det-format.md](docs/det-format.md).
 ```
 
 The prompts (`practice/{speaking,writing}/prompts.csv`, ~20 each, written in
-the style of the public practice material) and the passages are the parts to
-grow by hand; photos are your own files and stay out of git.
+the style of the public practice material) are the part to grow by hand;
+the passage bank grows with `scripts/passages.py fetch` (the search terms in
+`scripts/topics.txt`) plus a read-through of `passages/incoming/` before the
+files are promoted; photos are your own files and stay out of git.
 
 ```mermaid
 flowchart LR
@@ -344,8 +357,8 @@ DET/
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
-├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/ (passages/, cloze cache), listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py, passages.py
+├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/ (passages/ — the 440-passage bank, #17 — and the cloze cache), listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py, passages.py (+ topics.txt, its search terms)
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

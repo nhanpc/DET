@@ -10,7 +10,8 @@ every word you got wrong or lacked lands in `vocab/my-words.csv` through
 
 | `task` | Drill | Items from | Clock | Scored |
 |---|---|---|---|---|
-| `read-and-complete` | cloze: complete the damaged words (first letters given) | *sentence mode*: `vocab/senses.csv` examples of the priority pool's families (missed words first, then the frontier sub-band); *passage mode*: `read-and-complete/passages/*.md` | 1 min / 3 min | correct blanks ÷ blanks |
+| `read-and-complete` | C-test: complete the damaged words (first half given) | *passage mode* (default): `read-and-complete/passages/*.md`, the 440-passage bank, passages with `b_text` near `θ`, a priority family damaged when one is in the window; *sentence mode*: `vocab/senses.csv` examples of the priority pool's families | 3 min / 1 min | credit = correct blanks ÷ blanks; moves `θ` |
+| `fill-in-the-blanks` | one sentence, one word missing but for its first third (`ten____`) | `listen-and-type/sentences.csv`, sentences with `b` near `θ`, the priority pool's families first | 20 s | credit 1 / 0; moves `θ` |
 | `listen-and-type` | dictation: play ≤ 3 times, type the sentence | `listen-and-type/sentences.csv`, sentences with `b` near `θ` (frontier sub-band before the first test), the priority pool's families first, edge-tts audio | 1 min | credit = 1 − character edits ÷ length; moves `θ` |
 | `read-aloud` | read the sentence; record | the same sentence bank, the same order | 20 s | self-rating |
 | `speak-photo` | describe a photo; record | `speaking/photos/` (any image; a `prompts.csv` row can give it a prompt) | 20 s prep, 30–90 s | self-rating |
@@ -36,7 +37,7 @@ Interactive Reading / Listening and the Samples: notes only, in
 
 ```mermaid
 flowchart LR
-    F["Priority pool<br/>learn.priority_pool · θ window (dictation)"] --> G[Item generator<br/>app/drills.py]
+    F["Priority pool<br/>learn.priority_pool · θ window (passages, sentences)"] --> G[Item generator<br/>app/drills.py]
     S[(senses.csv<br/>index.csv members)] --> G
     P[(prompts.csv<br/>passages/, photos/)] --> G
     G --> D[Timed drill screen<br/>#drill/task]
@@ -55,8 +56,9 @@ and since issue #13 every vocabulary drill uses that link the same way:
 **the words you missed come first** — in the level test (`repeat`, `missed`,
 `shaky`) and in practice (open `vocab/my-words.csv` rows: cloze and
 dictation errors, pins, *words I lacked*). The selection window on the θ/b
-scale comes from #16 (dictation: `|b − θ| ≤ 0.6`) and #17 (cloze passages);
-the pool decides the **order inside the window**.
+scale comes from #16 (dictation: `|b − θ| ≤ 0.6`) and #17 (passages and
+Fill in the Blanks, the same window); the pool decides the **order inside
+the window**.
 
 ```mermaid
 flowchart LR
@@ -65,7 +67,7 @@ flowchart LR
     L["words I lacked · Pin"] --> M
     P{{"priority pool<br/>learn.priority_pool<br/>family → tier, weight"}} --> RC["read-and-complete"]
     P --> LT["listen-and-type<br/>read-aloud"]
-    P --> FB["fill-in-the-blanks (#17)"]
+    P --> FB["fill-in-the-blanks"]
     RC & LT & FB -->|"hit on 2 days"| D["my-words row → done by practice"]
     D -.->|"leaves the pool"| P
 ```
@@ -97,20 +99,26 @@ example sentences can come back in another sentence the same week.
 
 Per drill:
 
-- **`read-and-complete`** (sentence mode): the cloze candidates whose family
-  is in the pool (any tier), weighted; the target family is always one of the
-  damaged words. Passage mode is unchanged.
-- **`listen-and-type`, `read-aloud`**: the #16 window first (`|b − θ| ≤ 0.6`,
-  the frontier sub-band before the first test), then the pool weights inside
-  it; a sentence whose family is outside the pool counts as a frontier one
-  (weight 1) so the window stays wide. Fallback to the whole bank stays.
-- **`fill-in-the-blanks`** (#17): the missing word is drawn from the pool
-  with the same weights — `priority_pool()` and `pick_weighted()` are the
-  hook.
+- **`read-and-complete`** (passage mode, #17): the passages with `b_text`
+  within ±0.6 of `θ` (widened until ten), each weighted by the heaviest
+  priority family it can damage — a family whose form stands at the damaged
+  parity of the passage (`drills.passage_targets`); a passage with none is a
+  frontier item (weight 1). The chosen family's word is always in the 5-blank
+  window: the seed of the item id is searched until the window holds it
+  (`drills.passage_seed`), so the id still replays the item. Sentence mode:
+  the cloze candidates whose family is in the pool (any tier), weighted; the
+  target family is always one of the damaged words.
+- **`listen-and-type`, `read-aloud`, `fill-in-the-blanks`**: the #16 window
+  first (`|b − θ| ≤ 0.6`, the frontier sub-band before the first test), then
+  the pool weights inside it; a sentence whose family is outside the pool
+  counts as a frontier one (weight 1) so the window stays wide. Fallback to
+  the whole bank stays. Fill in the Blanks removes the sentence's own family
+  — the word the row was built for — so the missing word is the pool's word.
 
 **Closing the loop.** A family is a *hit* in an attempt when its `events`
-entry says so (the target's blank in a cloze item, every content word typed
-right in a dictation — the same `hit` event #16 writes). On every drill
+entry says so (every content-word blank of a cloze item, the word of a
+fill-in item, every content word typed right in a dictation — the same `hit`
+event #16 writes). On every drill
 answer `learn.practice_done()` marks an open my-words row done once its
 family has hits on **two different days** since the row was added with no
 error in between (`learn.drill_hits()`); the row's `done` reads `<date>
@@ -120,39 +128,116 @@ Learn page and `GET /api/progress` count the two apart (`done by cards`,
 
 **Showing the why.** The item screen carries a chip with the reason — `missed
 2× in the test`, `my-words · listen-and-type 2026-09-14`, `shaky`, nothing
-for a frontier word; the result screens of cloze and dictation mark the
-target family in the sentence; the practice page header reads `priority
+for a frontier word (or a passage without one); the result screens of cloze,
+fill-in and dictation mark the target family in the text; the practice page header reads `priority
 pool: 23 words (my-words 9 · repeat 4 · missed 7 · shaky 3)`, the same
 numbers `GET /api/progress` returns under `pool` and `vocab/progress.md`
 prints under *Words*.
 
 ## How each drill runs
 
-**Read and Complete.** C-test damage, the rule of the real task: a word is
-*eligible* when it is letters only, 3+ letters, not a capitalised word inside
-a sentence (a name) and not a number; every second eligible word loses its
-second half (`len // 2` letters kept, at least one: `skipped → ski____`,
-`the → t__`). Sentence mode picks the parity that damages the target family's
-form (headword or `members`), so the item always tests that family; passage
-mode keeps the first sentence intact and damages the 2nd, 4th, … eligible
-word after it. 2–5 blanks: an item that yields fewer is skipped, more are cut
-to a window of 5 that contains the target, the window offset drawn from the
-seed. Items are not stored — the id (`<family>.<sense>.<seed>` or
-`<passage-slug>.<seed>`) regenerates them, and "not shown twice in a week" is
-a lookup on the `item` column. Answer: exact match per blank, letters only,
-case-insensitive. A wrong blank whose word maps to an `index.csv` family goes
-to my-words with the sentence as the note (a proper noun in a passage is
-logged in `attempts.csv` only).
+**Read and Complete** (issue #17 — the C-test on the DET scale of
+[docs/det-adaptive.md](../docs/det-adaptive.md) § *Cloze*). C-test damage,
+the rule of the real task: a word is *eligible* when it is letters only, 3+
+letters, not a capitalised word inside a sentence (a name) and not a number;
+every second eligible word loses its second half (`len // 2` letters kept, at
+least one: `skipped → ski____`, `the → t__`). Passage mode — the default, the
+DET's own form, 3 minutes — keeps the first sentence intact and damages the
+2nd, 4th, … eligible word after it; sentence mode (the *Sentence mode*
+button, `#drill/read-and-complete/sentence`, 1 minute) picks the parity that
+damages the target family's form (headword or `members`), so the item always
+tests that family. 2–5 blanks: an item that yields fewer is skipped, more are
+cut to a window of 5 that contains the target, the window offset drawn from
+the seed. Items are not stored — the id (`<passage-slug>.<seed>` or
+`<family>.<sense>.<seed>`) regenerates them, and "not shown twice" is a
+lookup on the `item` column: 30 days for a passage, 7 for a sentence.
 
-Passages: paste 50–80 words into `read-and-complete/passages/<slug>.md`
-(Simple English Wikipedia, CC BY-SA, is a good source) with a front-matter
-block giving the `source:` URL and the `licence:`, then run
-`.venv/bin/python scripts/passages.py score`, which writes `b_text:`,
-`b_adjust:` (0 until own responses refit it) and `features:` into the same
-block; `scripts/passages.py check` fails on a passage without source,
-licence or a current `b_text`, or with fewer than 6 blanks. Three examples
-are committed. Sentence-mode candidates are cached the same way in
+```mermaid
+flowchart LR
+    TH["θ, se<br/>last test + drills"] --> W["passages |b_text − θ| ≤ 0.6<br/>widened by 0.3 until 10<br/>not read in 30 days"]
+    PB[("passages/*.md<br/>440, b_text")] --> W
+    PP["priority pool<br/>family at the damaged parity"] --> W
+    W --> S["passage + family"] --> SD["seed whose 5-blank window<br/>holds the family's word"] --> I["item ‹slug›.‹seed›<br/>3 min"]
+    I --> T[typed blanks]
+    T --> C["credit = correct ÷ blanks"] --> U["θ update<br/>snap, fractional Rasch"]
+    T --> E["events per content blank<br/>hit · spelling (≤ 1 edit) · vocabulary"]
+    E --> M["word_stats merge<br/>my-words · source task:kind"]
+    C & E --> A[("attempts.csv<br/>score, theta, b, events")]
+    A -->|"≥ 5 attempts"| R["refit b_adjust<br/>→ front matter / cloze.csv"]
+```
+
+- **Selection.** After the first reliable test the passage is drawn from
+  those whose `b` (`b_text + b_adjust`) lies within ±0.6 of `θ`, the window
+  widened by 0.3 until it holds ten; inside the window the priority pool's
+  weights apply (§ *Which item comes next*: the passage's weight is that of
+  the heaviest priority family standing at its damaged parity) and that
+  family's word is always one of the five blanks. Before a test the window
+  is built around the middle of the frontier sub-band.
+- **Credit.** Exact match per blank, letters only, case-insensitive;
+  `credit = correct ÷ blanks` is the `score` column and enters the learner's
+  posterior against the passage's `b` as `P^s · (1 − P)^(1 − s)` after
+  `irt.snap()` (`s ≥ 0.95` right, `s ≤ 0.2` wrong) — the same update as the
+  dictation. The result screen shows `θ` before → after and the passage's
+  `b`. Sentence mode does the same against the sentence's `b_text`.
+- **Events.** Every blank whose word is a content word of the bank (a family
+  that is not a function word and that the test can show — `t__` for `the`
+  is scored but never word evidence) is one event, `family:kind`:
+
+  | Blank | Kind |
+  |---|---|
+  | the answer, any case, punctuation ignored | `hit` |
+  | within one letter edit of the answer (`sentance`) | `spelling` |
+  | anything else, or empty | `vocabulary` |
+
+  A `vocabulary` miss goes to my-words under `source = read-and-complete`
+  with the blank's sentence as the note, a `spelling` slip under
+  `read-and-complete:spelling` (never exported as a card); `learn.word_stats`
+  merges them like the dictation events (#16).
+- **Refit.** After every answer `textdiff.refit_bank()` re-estimates the
+  passage's (or the sentence's) `b_adjust` from the `(theta, score)` pairs on
+  record (≥ 5 attempts) and writes it back into the passage's front matter
+  (`b_adjust:`) or `cloze.csv` when it moved.
+
+**The passage bank** — `read-and-complete/passages/<slug>.md`, 440 passages
+of 50–80 words in ≥ 4 whole sentences, the opening sentences of Simple
+English Wikipedia articles (CC BY-SA 4.0), spread over `b_text` 3–12 so any
+`θ` between 4 and 11.5 has ten passages within ±0.6 (the bottom of the scale
+is thin: a 50-word text rarely scores under 4). Front matter: `source:` (the
+article URL), `licence:`, `fetched:` (the date), then `b_text:`, `b_adjust:`
+(0 until own responses refit it) and `features:` written by
+`scripts/passages.py score`. To grow the bank:
+
+```bash
+.venv/bin/python scripts/passages.py fetch --n 200 --min 50 --max 80   # → passages/incoming/ (gitignored)
+# read every file; delete the bad ones; then
+git mv practice/read-and-complete/passages/incoming/*.md practice/read-and-complete/passages/
+.venv/bin/python scripts/passages.py check
+```
+
+`fetch` searches the MediaWiki API for every term of `scripts/topics.txt`
+(everyday life, science, history, places — the DET's mix), takes the longest
+run of opening sentences of the intro that fits the length, and skips — with
+the reason on stderr — lists and tables, wiki markup or a pronunciation
+guide left in the text, a non-Latin character, more than 2 off-list content
+words, a passage where names and numbers are over a quarter of the tokens
+(biographies), an abbreviation that would break the sentence rule, and a
+passage yielding fewer than 6 blanks by the C-test rule. Every kept file is
+still read by hand before it is promoted. `check` fails on a passage without
+`source`, `licence` or a current `b_text`, or with fewer than 6 blanks.
+Sentence-mode candidates are cached the same way in
 `read-and-complete/cloze.csv` (gitignored, rebuilt on the first request).
+
+**Fill in the Blanks** (issue #17 — a DET item, not a C-test). One sentence
+of the dictation bank (`listen-and-type/sentences.csv`), drawn from the same
+`θ` window and pool weights as the dictation; the sentence's own family —
+the word the row was built for — is removed but for its first
+`ceil(len / 3)` letters (`tenant → te____`, `tenants → ten____`); 20
+seconds; type the whole word. Item id `<family>.<sense>.fb` (the sentence id
+plus `.fb`), so the sentence is not drawn again for a week. Exact letters,
+case-insensitive: `credit` 1 or 0 against the sentence's `b`, into `θ` like
+the passage; one event for the family — `hit`, `spelling` (one letter off)
+or `vocabulary` — and the same my-words rule. The result screen shows the
+sentence with the answer, the kind, and `θ` before → after.
 
 **Listen and Type** (issue #16 — the drill on the DET scale of
 [docs/det-adaptive.md](../docs/det-adaptive.md) § *Dictation*).
@@ -231,11 +316,11 @@ flowchart LR
   sentence's `b_adjust` from the `(theta, score)` pairs on record (≥ 5
   attempts per sentence) and rewrites `sentences.csv` when something moved.
 
-Both vocabulary drills map a wrong word to its family through `index.csv`
+The vocabulary drills map a wrong word to its family through `index.csv`
 headwords and `members`; families the app never shows (two-letter ones such
-as `be`, `a`, `to` — the same `bank.WORD` rule as the test) are logged in
-`attempts.csv` but not added, so a blank dictation answer does not push
-function words onto the study list.
+as `be`, `a`, `to` — the same `bank.WORD` rule as the test) and function
+words are logged in `attempts.csv` but not added, so a blank dictation
+answer or a `t__` blank does not push function words onto the study list.
 
 **Speaking.** Prompt (or photo, or the prompt read by edge-tts), a 20 s
 preparation countdown, then the browser's `MediaRecorder` starts by itself;
@@ -261,9 +346,9 @@ outside the list is added under its own spelling and becomes an *extra* entry
 on the study list (issue #8).
 
 The start page shows today's attempts per task and the size of the priority
-pool. Routine: one speaking and one writing drill a day; cloze and dictation
-three times a week, 10 items each — the words you missed first, then the
-frontier (cloze) or the sentences near `θ` (dictation).
+pool. Routine: one speaking and one writing drill a day; cloze, fill-in and
+dictation three times a week, 10 items each — passages and sentences near
+`θ`, the words you missed first.
 
 ## `attempts.csv`
 
@@ -275,22 +360,22 @@ One row per finished or timed-out attempt, every task type. Written by
 | `date` | `YYYY-MM-DD` |
 | `attempt` | `<date>_<HHMMSS>_<4 hex>` — the same shape as a test session id; also the recording / draft file name |
 | `task` | one of the ids in the table above |
-| `item` | cloze id (`<family>.<sense>.<seed>` or `<slug>.<seed>`, replayable), sentence id (`<family>.<sense>`) or prompt id |
+| `item` | cloze id (`<slug>.<seed>` or `<family>.<sense>.<seed>`, replayable), fill-in id (`<family>.<sense>.fb`), sentence id (`<family>.<sense>`) or prompt id |
 | `subband` | the sub-band the item targets; blank for passages and prompts |
 | `seconds` | time used, both parts summed for Interactive Writing |
 | `timed_out` | `1` when the clock ran out |
-| `score` | 0–1 for `read-and-complete` (correct blanks ÷ blanks) and `listen-and-type` (the credit, since #16); blank otherwise |
+| `score` | the credit, 0–1: `read-and-complete` (correct blanks ÷ blanks), `fill-in-the-blanks` (1 / 0), `listen-and-type` (character-level similarity, #16); blank otherwise |
 | `self` | 1–5 self-rating for speaking and writing; blank otherwise |
-| `words` | blanks (cloze), reference words (dictation), words written (writing); blank for speaking |
+| `words` | blanks (cloze; 1 for fill-in), reference words (dictation), words written (writing); blank for speaking |
 | `errors` | `;`-separated `expected>typed` pairs (`sentence>sentance`, `so>` for a missing word, `>extra` for an extra one); empty when none |
 | `file` | draft or recording path relative to `practice/`; blank for cloze and dictation |
-| `theta` | the learner's `θ` *before* the attempt (dictation, since #16); blank before the first reliable test and on older rows |
+| `theta` | the learner's `θ` *before* the attempt (dictation since #16, cloze and fill-in since #17); blank before the first reliable test and on older rows |
 | `b` | the item's difficulty (`b_text + b_adjust`) at the time; blank on older rows |
-| `events` | `family:kind|family:kind` — one per content word of a dictation sentence (`hit`, `form`, `hearing`, `spelling`, `vocabulary`); the target family's `hit` or `vocabulary` for a sentence-mode cloze item (#17 adds every blank); blank on older rows |
+| `events` | `family:kind|family:kind` — one per content word of a dictation sentence (`hit`, `form`, `hearing`, `spelling`, `vocabulary`), one per content-word blank of a cloze item and one for the fill-in word (`hit`, `spelling`, `vocabulary`); blank on older rows |
 
-Rows written before #16 have no `theta`, `b` or `events`: they load with
-blanks, the header is upgraded on the next write, and only rows with a `b`
-feed `θ`.
+Rows written before #16 (dictation) and #17 (cloze) have no `theta`, `b` or
+`events`: they load with blanks, the header is upgraded on the next write,
+and only rows with a `b` feed `θ`.
 
 ## `speaking/prompts.csv` and `writing/prompts.csv`
 

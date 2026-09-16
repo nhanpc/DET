@@ -199,7 +199,7 @@
     <div class="group"><span class="eyebrow">Vocabulary</span><span id="d-vocab"></span></div>
     <div class="group"><span class="eyebrow">Speaking</span><span id="d-speak"></span></div>
     <div class="group"><span class="eyebrow">Writing</span><span id="d-write"></span></div>
-    <div class="note">Routine: one speaking and one writing drill a day; cloze and dictation 3× a week, 10 items each — cloze from the frontier sub-band, dictation from sentences near your θ, scored with partial credit that moves θ. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
+    <div class="note">Routine: one speaking and one writing drill a day; cloze, fill-in and dictation 3× a week, 10 items each — passages and sentences near your θ, the words you missed first, scored with partial credit that moves θ. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
   </div>
 </section>
 
@@ -503,16 +503,16 @@
   }
 
   // ---- drills (Phase 5, issue #10): #drill/<task>; one screen, the stage re-rendered per task and phase
-  const TASK_NAMES = { 'read-and-complete': 'Read and Complete', 'listen-and-type': 'Listen and Type', 'read-aloud': 'Read Aloud',
+  const TASK_NAMES = { 'read-and-complete': 'Read and Complete', 'fill-in-the-blanks': 'Fill in the Blanks', 'listen-and-type': 'Listen and Type', 'read-aloud': 'Read Aloud',
     'speak-photo': 'Speak About the Photo', 'read-then-speak': 'Read Then Speak', 'listen-then-speak': 'Listen Then Speak',
     'write-photo': 'Write About the Photo', 'read-then-write': 'Read Then Write', 'interactive-writing': 'Interactive Writing' };
   const SPEAKING = ['read-aloud', 'speak-photo', 'read-then-speak', 'listen-then-speak'], WRITING = ['write-photo', 'read-then-write', 'interactive-writing'];
-  const D = { task: null, mode: 'sentence', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
+  const D = { task: null, mode: 'passage', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
   // The practice-page header (issue #13): the priority pool — the words missed in the test or in practice, drawn first.
   const poolLine = (p) => `priority pool: ${p.total} word${p.total === 1 ? '' : 's'} (my-words ${p['my-words']} · repeat ${p.repeat} · missed ${p.missed} · shaky ${p.shaky})`;
   function renderDrills(tasks, today, frontier, pool) {
     const btn = (t) => `<button class="drill-btn" data-task="${t}">${TASK_NAMES[t]}<small class="${today[t] ? 'done' : ''}">${today[t] || 0} today</small></button>`;
-    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('listen-and-type') + ` <span class="note">missed words first, then ${frontier}</span>`;
+    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('fill-in-the-blanks') + ' ' + btn('listen-and-type') + ` <span class="note">missed words first, then ${frontier}</span>`;
     $('d-pool').textContent = poolLine(pool);
     $('d-speak').innerHTML = SPEAKING.map(btn).join(' ');
     $('d-write').innerHTML = WRITING.map(btn).join(' ');
@@ -544,6 +544,9 @@
     const re = new RegExp(`(^|[^A-Za-z])(${forms.map(f => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![A-Za-z])`, 'gi');
     return html.replace(re, (m, pre, w) => `${pre}<mark>${w}</mark>`);
   };
+  // The θ line of a drill on the scale (#16, #17): before → after, or why it does not move yet.
+  const thetaLine = (r, what) => r.theta == null ? 'θ moves once a reliable test is on record'
+    : `θ ${r.theta.toFixed(2)} → ${r.theta_after.toFixed(2)} ± ${r.se_after.toFixed(2)} · ${what} b ${r.b.toFixed(2)}`;
   const doneLine = (done) => done && done.length ? `<div class="note">Done by practice (hit on two days): ${done.map(esc).join(', ')} — off the my-words list.</div>` : '';
   const addedLine = (added) => added.length
     ? `<div class="note">To my-words: ${added.map(a => `<b>${esc(a.family)}</b>${a.kind && a.kind !== 'vocabulary' ? ' (' + a.kind + ')' : ''}${a.in_index ? '' : ' (extra)'}${a.added ? '' : ' (already open)'}`).join(', ')}</div>`
@@ -551,10 +554,10 @@
   async function openDrill(task, mode) {
     if (!TASK_NAMES[task]) return;
     stopClock(); await stopRecording();
-    D.task = task; D.mode = mode === 'passage' ? 'passage' : 'sentence'; D.plays = 0; D.ms = 0; D.text = D.text2 = ''; D.rating = [0, 0, 0, 0];
+    D.task = task; D.mode = mode === 'sentence' ? 'sentence' : 'passage'; D.plays = 0; D.ms = 0; D.text = D.text2 = ''; D.rating = [0, 0, 0, 0];
     $('d-task').textContent = TASK_NAMES[task];
     $('d-subband').textContent = ''; $('d-phase').textContent = ''; $('d-clock').textContent = '';
-    show('drill', `#drill/${task}${D.mode === 'passage' ? '/passage' : ''}`);
+    show('drill', `#drill/${task}${task === 'read-and-complete' && D.mode === 'sentence' ? '/sentence' : ''}`);
     stage('<div class="hint">Loading…</div>');
     let it;
     try { it = await api(`/api/drill/${task}/next${task === 'read-and-complete' ? '?mode=' + D.mode : ''}`); }
@@ -566,6 +569,7 @@
     chip.hidden = !it.reason_label; chip.textContent = it.reason_label || ''; chip.className = `tag ${it.reason || ''}`;
     D.startedAt = Date.now();
     if (task === 'read-and-complete') renderCloze(it);
+    else if (task === 'fill-in-the-blanks') renderFill(it);
     else if (task === 'listen-and-type') renderDictation(it);
     else if (task === 'read-aloud') renderReadAloud(it);
     else if (SPEAKING.includes(task)) renderSpeaking(it);
@@ -576,10 +580,11 @@
   function renderCloze(it) {
     const html = it.pieces.map(p => typeof p === 'string' ? esc(p)
       : `<input value="${esc(p.keep)}" data-keep="${esc(p.keep)}" maxlength="${p.keep.length + p.missing + 4}" style="width:${p.keep.length + p.missing + 1.5}ch" autocomplete="off" spellcheck="false">`).join('');
+    const where = it.theta == null ? '' : ` · b ${it.b.toFixed(2)} for θ ${it.theta.toFixed(2)}${it.window > 0.6 ? ' (window ±' + it.window.toFixed(1) + ')' : ''}`;
     stage(`<form class="cloze" id="d-form">${html}</form>` +
-      `<div class="hint">${it.blanks} blanks · complete each word (the first letters are given) · Enter when done` +
+      `<div class="hint">${it.blanks} blanks · complete each word (the first letters are given) · Enter when done${where}` +
       (D.mode === 'passage' ? ` · <a href="${esc(it.source)}" target="_blank" rel="noopener">source</a>` : '') + `</div>` +
-      `<div class="row"><button class="secondary" id="d-submit">Check</button><button class="secondary" id="d-mode">${D.mode === 'passage' ? 'Sentence mode' : 'Passage mode'}</button></div>`);
+      `<div class="row"><button class="secondary" id="d-submit">Check</button><button class="secondary" id="d-mode">${D.mode === 'passage' ? 'Sentence mode (1 min)' : 'Passage mode (3 min)'}</button></div>`);
     const inputs = [...$('d-form').querySelectorAll('input')];
     inputs.forEach(i => { i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitCloze(false); } }); });
     inputs[0].focus(); inputs[0].setSelectionRange(inputs[0].value.length, inputs[0].value.length);
@@ -592,15 +597,48 @@
     stopClock(); D.ms = Date.now() - D.startedAt;
     const typed = [...$('d-form').querySelectorAll('input')].map(i => i.value.trim());
     const r = await api(`/api/drill/read-and-complete/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, timed_out: timedOut }) });
+    // each wrong blank carries its kind (#17): spelling (one letter off) or vocabulary; a function-word blank has none
+    const kinds = {};
+    r.events.forEach((e, i) => { if (e.kind !== 'hit') kinds[e.word + ':' + e.typed] = e.kind; });
     let k = 0;
     const text = D.item.pieces.map(p => typeof p === 'string' ? esc(p) : (() => {
-      const want = r.answers[k], got = typed[k++];
-      return got.toLowerCase() === want.toLowerCase() ? `<span class="ok">${esc(want)}</span>` : `<span class="bad">${esc(got || '·')}</span> <span class="want">${esc(want)}</span>`;
+      const want = r.answers[k], got = typed[k++], kind = kinds[want + ':' + got];
+      return got.replace(/[^A-Za-z]/g, '').toLowerCase() === want.toLowerCase() ? `<span class="ok">${esc(want)}</span>`
+        : `<span class="bad">${esc(got || '·')}</span> <span class="want">${esc(want)}</span>${kind ? `<span class="kind">${kind}</span>` : ''}`;
     })()).join('');
-    resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.correct} of ${r.blanks} blanks${timedOut ? ' · time ran out' : ''} · ${fmt(Math.round(D.ms / 1000))}</span></div>` +
+    resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.correct} of ${r.blanks} blanks · credit${timedOut ? ' · time ran out' : ''} · ${fmt(Math.round(D.ms / 1000))}</span></div>` +
+      `<div class="theta">${thetaLine(r, D.mode === 'passage' ? 'passage' : 'sentence')}</div>` +
       `<div class="text">${markTarget(text, r.forms)}</div>` + (r.family ? `<div class="note">Target: <b>${esc(r.family)}</b>${D.item.reason_label ? ' · ' + esc(D.item.reason_label) : ''}</div>` : '') +
       addedLine(r.added) + doneLine(r.done) + backButtons());
     wireResult(() => openDrill('read-and-complete', D.mode));
+  }
+
+  // Fill in the Blanks (#17): one sentence, one word missing but for its first third; 20 s; Enter or the clock submits.
+  function renderFill(it) {
+    const html = it.pieces.map(p => typeof p === 'string' ? esc(p)
+      : `<input value="${esc(p.keep)}" data-keep="${esc(p.keep)}" maxlength="${p.keep.length + p.missing + 4}" style="width:${p.keep.length + p.missing + 1.5}ch" autocomplete="off" spellcheck="false">`).join('');
+    const where = it.theta == null ? '' : ` · b ${it.b.toFixed(2)} for θ ${it.theta.toFixed(2)}${it.window > 0.6 ? ' (window ±' + it.window.toFixed(1) + ')' : ''}`;
+    stage(`<form class="cloze" id="d-form">${html}</form>` +
+      `<div class="hint">one word · the first ${it.keep} letter${it.keep === 1 ? '' : 's'} given · type the whole word · Enter when done${where}</div>` +
+      `<div class="row"><button class="secondary" id="d-submit">Check</button></div>`);
+    const input = $('d-form').querySelector('input');
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitFill(false); } });
+    input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+    $('d-submit').onclick = () => submitFill(false);
+    countdown(it.seconds, 'Fill in the blank', () => submitFill(true));
+  }
+  async function submitFill(timedOut) {
+    if (!D.item || $('d-stage').hidden) return;
+    stopClock(); D.ms = Date.now() - D.startedAt;
+    const typed = $('d-form').querySelector('input').value.trim();
+    const r = await api(`/api/drill/fill-in-the-blanks/${encodeURIComponent(D.item.id)}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, timed_out: timedOut }) });
+    const text = r.pieces.map(p => typeof p === 'string' ? esc(p)
+      : r.kind === 'hit' ? `<span class="ok">${esc(r.answer)}</span>` : `<span class="bad">${esc(r.typed || '·')}</span> <span class="want">${esc(r.answer)}</span><span class="kind">${r.kind}</span>`).join('');
+    resultBox(`<div class="big"><b>${r.kind === 'hit' ? 'Right' : 'Wrong'}</b><span>credit ${r.credit}${r.kind !== 'hit' ? ' · ' + r.kind : ''}${timedOut ? ' · time ran out' : ''} · ${fmt(Math.round(D.ms / 1000))}</span></div>` +
+      `<div class="theta">${thetaLine(r, 'sentence')}</div>` +
+      `<div class="text">${text}</div><div class="note">Target: <b>${esc(r.family)}</b>${D.item.reason_label ? ' · ' + esc(D.item.reason_label) : ''}</div>` +
+      addedLine(r.added) + doneLine(r.done) + backButtons());
+    wireResult(() => openDrill('fill-in-the-blanks'));
   }
 
   // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits.
@@ -791,7 +829,7 @@
     if (b) b.onclick = async () => { stopClock(); await stopRecording(); D.item = null; show('start'); init(); };
   }
   function route() {
-    const m = location.hash.match(/^#drill\/([a-z-]+)(?:\/(passage))?$/);
+    const m = location.hash.match(/^#drill\/([a-z-]+)(?:\/(passage|sentence))?$/);
     if (m) openDrill(m[1], m[2]);
     else if (location.hash === '#learn') openLearn();
   }

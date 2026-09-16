@@ -1,8 +1,13 @@
 """DET task drills (GitHub issue nhanpc/DET#10, Phase 5). Pure functions; main.py does the I/O.
 
-Read and Complete   cloze(): C-test damage of a senses.csv example (sentence mode) or a hand-pasted passage —
-                    every second eligible word loses its second half. Items are not stored: the id encodes the
-                    inputs (`<family>.<sense>.<seed>` / `<passage-slug>.<seed>`) and cloze() is deterministic.
+Read and Complete   cloze(): C-test damage of a senses.csv example (sentence mode) or a passage of the bank
+                    (practice/read-and-complete/passages/, issue #17) — every second eligible word loses its
+                    second half. Items are not stored: the id encodes the inputs (`<family>.<sense>.<seed>` /
+                    `<passage-slug>.<seed>`) and cloze() is deterministic. passage_targets() / passage_seed() put
+                    a priority family's word inside the 5-blank window; cloze_events() says what each blank told
+                    us — hit, spelling (≤ NEAR letter edits) or vocabulary.
+Fill in the Blanks  fill_blank(): one sentence of the dictation bank, the target family's form removed but for its
+                    first ceil(len / 3) letters (`ten____`); id `<family>.<sense>.fb`, exact match, 20 s (#17).
 Listen and Type     build_sentences(): the dictation bank (one 6–14-word example per family) cached in
                     practice/listen-and-type/sentences.csv with its b_text (app/textdiff.py, issue #15);
                     dictation_score(): the credit (character-level edit distance, issue #16) and the word-level
@@ -44,6 +49,9 @@ MIN_WORDS, MAX_WORDS = 6, 14        # example length for the drills (cloze: ≥ 
 MIN_BLANKS, MAX_BLANKS = 2, 5       # blanks per cloze item; fewer → the item is skipped, more → a window of MAX_BLANKS
 PLAYS = 3                           # dictation and Listen Then Speak: how often the audio may be played
 NO_REPEAT_DAYS = 7                  # an item shown in the last week is not drawn again
+PASSAGE_REPEAT_DAYS = 30            # a passage read in the last 30 days is not drawn again (#17)
+NEAR = 1                            # a cloze blank within this many letter edits of the answer is a spelling slip, not a miss
+SEED_TRIES = 200                    # passage_seed(): seeds tried before giving up on a target
 PRIORITY_SHARE = 0.5                # pick_weighted(): P(the draw comes from the priority items, weight > FRONTIER_WEIGHT)
 FRONTIER_WEIGHT = 1                 # the weight of a frontier family in learn.priority_pool(); above it = priority
 DRILL_WINDOW, DRILL_STEP, DRILL_MIN = 0.6, 0.3, 10   # |b − θ| ≤ 0.6, widened by 0.3 until 10 candidates (#16)
@@ -56,6 +64,7 @@ RATING_LINES = ("task", "fluency", "vocabulary", "grammar")   # the four 1–5 s
 # words written), the second part of Interactive Writing, and which folder the attempt's file lands in.
 TASKS: dict[str, dict] = {
     "read-and-complete": {"skill": "reading", "prep": 0, "seconds": 60, "passage_seconds": 180, "min": 0},
+    "fill-in-the-blanks": {"skill": "reading", "prep": 0, "seconds": 20, "min": 0},
     "listen-and-type": {"skill": "listening", "prep": 0, "seconds": 60, "min": 0, "plays": PLAYS},
     "read-aloud": {"skill": "speaking", "prep": 0, "seconds": 20, "min": 0},
     "speak-photo": {"skill": "speaking", "prep": 20, "seconds": 90, "min": 30},
@@ -181,6 +190,103 @@ def parse_cloze_id(item: str, index: dict[str, dict]) -> tuple[str, Optional[int
     if not slug or not seed.isdigit():
         raise ValueError(f"bad item id {item!r}")
     return slug, None, int(seed)
+
+
+def passage_targets(text: str, families, lex) -> list[tuple[str, str]]:
+    """The (family, word) pairs a passage can test in passage mode: the words at the damaged parity (the 2nd,
+    4th, … eligible word after the first sentence) whose family (`lex.family`, a textdiff.Lexicon) is one of
+    `families` — one entry per family, first occurrence, in text order. A priority family found here can be put
+    inside the 5-blank window by passage_seed() without changing the passage rule."""
+    out, seen = [], set()
+    for a, b in eligible(text, keep_first_sentence=True)[1::2]:
+        w = text[a:b]
+        family = lex.family(w)
+        if family is not None and family in families and family not in seen:
+            seen.add(family)
+            out.append((family, w))
+    return out
+
+
+def passage_seed(text: str, target: re.Pattern, rng: random.Random, tries: int = SEED_TRIES) -> Optional[int]:
+    """A seed whose passage-mode window holds a form of the target (forms_pattern()): seeds are tried from a
+    random start until one fits, so the item id `<slug>.<seed>` replays the same item; None when none fits."""
+    base = rng.randrange(10_000)
+    for i in range(tries):
+        seed = (base + i) % 10_000
+        item = cloze(text, seed, passage=True)
+        if item is None:
+            return None
+        if any(target.match(a) for a in item["answers"]):
+            return seed
+    return None
+
+
+def blank_kind(want: str, got: str) -> str:
+    """What one blank says: `hit` (letters only, case-insensitive, exact), `spelling` (within NEAR letter edits of
+    the answer — the word was known, a letter was not), else `vocabulary`."""
+    got = re.sub(r"[^A-Za-z]", "", got or "").lower()
+    if got == want.lower():
+        return "hit"
+    return "spelling" if got and levenshtein(want.lower(), got) <= NEAR else "vocabulary"
+
+
+def cloze_events(answers: list[str], typed: list[str], lex) -> list[dict]:
+    """One event per content-word blank (a family of `lex` that is not a function word and that the test can
+    show — bank.WORD, so `the` and `and` blanks are scored but never word evidence): blank_kind() of the pair.
+    [{family, kind, word, typed}] in blank order; the same family twice → two events."""
+    out = []
+    for want, got in zip_longest(answers, typed, fillvalue=""):
+        if not want:
+            break
+        family = lex.family(want)
+        if family is None or family in lex.function or not WORD.match(family):
+            continue
+        out.append({"family": family, "kind": blank_kind(want, got), "word": want, "typed": got or ""})
+    return out
+
+
+def fill_keep(word: str) -> int:
+    """Letters shown in a Fill in the Blanks item: ceil(len / 3) — `tenant` → 2 (`te____`), `tenants` → 3."""
+    return -(-len(word) // 3)
+
+
+def fill_blank(sentence: str, target: re.Pattern) -> Optional[dict]:
+    """The Fill in the Blanks item: the first word of `sentence` matching `target` (forms_pattern() of the
+    family; letters only, LETTERS) is removed but for its first fill_keep() letters. `pieces` has the text
+    before, `{"keep", "missing"}` and the text after, like cloze(); `answer` the word. None when no form of the
+    family stands in the sentence as a plain word."""
+    for m in TOKEN.finditer(sentence):
+        w = m.group()
+        if LETTERS.match(w) and target.match(w):
+            keep = fill_keep(w)
+            pieces = [p for p in (sentence[:m.start()], {"keep": w[:keep], "missing": len(w) - keep}, sentence[m.end():]) if p != ""]
+            return {"pieces": pieces, "answer": w, "keep": keep,
+                    "damaged": sentence[:m.start()] + w[:keep] + "_" * (len(w) - keep) + sentence[m.end():]}
+    return None
+
+
+def fill_id(family: str, sense: str | int) -> str:
+    return f"{family}.{sense}.fb"
+
+
+def parse_fill_id(item: str) -> str:
+    """`tenant.1.fb` → the sentence id `tenant.1`."""
+    sid, sep, tail = item.rpartition(".")
+    if not sep or tail != "fb" or not sid:
+        raise ValueError(f"bad item id {item!r}")
+    return sid
+
+
+def sentence_of(text: str, word: str) -> str:
+    """The sentence of `text` holding `word` (whole word, first occurrence) — the my-words note of a passage
+    blank; the whole text when the word is not found."""
+    m = re.search(r"(?<![A-Za-z])" + re.escape(word) + r"(?![A-Za-z])", text)
+    if m is None:
+        return text
+    starts = [0] + [e.end() for e in SENTENCE_END.finditer(text)]
+    start = max(s for s in starts if s <= m.start())
+    end = next((e.end() for e in SENTENCE_END.finditer(text) if e.end() > m.start()), len(text))
+    return text[start:end].strip()
 
 
 # ---- the sentence bank (cloze candidates, dictation, Read Aloud) ----------------------------------------------
@@ -455,14 +561,15 @@ def errors_column(pairs: Iterable[tuple[str, str]]) -> str:
 
 
 def recent_items(attempts: Iterable[dict], task: str, today: Optional[date] = None, days: int = NO_REPEAT_DAYS) -> set[str]:
-    """Item ids of `task` attempted in the last `days` days, with the cloze seed stripped (`skip.1.42` → `skip.1`)
-    so a sentence is not shown twice with different windows."""
+    """Item ids of `task` attempted in the last `days` days, with the cloze seed stripped (`skip.1.42` → `skip.1`,
+    `honey.42` → `honey`) so a sentence or passage is not shown twice with different windows, and the `.fb` of
+    a Fill in the Blanks id (`tenant.1.fb` → `tenant.1`, the sentence)."""
     since = (today or date.today()) - timedelta(days=days)
     out = set()
     for r in attempts:
         if r["task"] == task and r["date"] >= since.isoformat():
             item = r["item"]
-            if task == "read-and-complete":
+            if task in ("read-and-complete", "fill-in-the-blanks"):
                 item = item.rpartition(".")[0]
             out.add(item)
     return out

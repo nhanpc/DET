@@ -27,8 +27,8 @@ Skill columns: R reading, L listening, W writing, S speaking. *Drill* is the
 | Task | Skills | Prep | Answer | Minimum | Items per test | Drill |
 |---|---|---|---|---|---|---|
 | Read and Select — is it a real English word? | R | – | 5 s per word, ~1 min per set | – | several sets of 15–18 words | the weekly level test (`app/adaptive.py`, issue #4) |
-| Read and Complete — a C-test passage: first letters given, complete the words | R | – | 3 min per passage | – | 3–6 passages | `read-and-complete` (sentence mode 1 min, passage mode 3 min) |
-| Fill in the Blanks — one sentence, complete the missing word | R | – | 20 s per sentence | – | 6–9 sentences | covered by the sentence mode of `read-and-complete` |
+| Read and Complete — a C-test passage: first letters given, complete the words | R | – | 3 min per passage | – | 3–6 passages | `read-and-complete` (passage mode 3 min, the default; sentence mode 1 min) |
+| Fill in the Blanks — one sentence, complete the missing word | R | – | 20 s per sentence | – | 6–9 sentences | `fill-in-the-blanks` (issue #17: the first third of the word given, 20 s) |
 | Listen and Type — type the sentence you hear | L | – | 1 min per sentence, audio ≤ 3 plays | – | 6–9 sentences | `listen-and-type` |
 | Listen and Complete — fill the blanks of an audio scenario | L | – | ~3 min per passage | – | 3–4 questions per Interactive Listening set | not drilled (notes in `practice/interactive/README.md`) |
 | Interactive Reading — a passage with several question types | R | – | 7–8 min per set | – | 2 sets | not drilled |

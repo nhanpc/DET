@@ -74,8 +74,8 @@ def test_drills_draw_from_the_pool(practice, monkeypatch):
     """Empty history: the frontier as today. A my-words row whose family has a sentence: with share 1 every
     dictation, Read Aloud and cloze item targets it, with the reason chip; the result marks the target."""
     c = TestClient(main.app)
-    for task in ("listen-and-type", "read-aloud", "read-and-complete"):
-        d = c.get(f"/api/drill/{task}/next").json()
+    for task in ("listen-and-type", "read-aloud", "read-and-complete", "fill-in-the-blanks"):
+        d = c.get(f"/api/drill/{task}/next?mode=sentence").json()
         assert d["subband"] == "1k-a" and d["reason"] == "" and d["reason_label"] == "" and d["family"] in main.BANK.index
         assert d["forms"][0] == d["family"] and set(d["forms"]) >= {d["family"]}
     assert c.get("/api/config").json()["pool"]["total"] == 0
@@ -84,11 +84,11 @@ def test_drills_draw_from_the_pool(practice, monkeypatch):
     cfg = c.get("/api/config").json()
     assert cfg["pool"] == {"total": 1, "my-words": 1, "repeat": 0, "missed": 0, "shaky": 0, "frontier": cfg["pool"]["frontier"]}
     assert cfg["pool"]["frontier"] > 100
-    for task in ("listen-and-type", "read-aloud"):
+    for task in ("listen-and-type", "read-aloud", "fill-in-the-blanks"):
         d = c.get(f"/api/drill/{task}/next").json()
         assert d["family"] == "tenant" and d["subband"] == "4k-a" and d["id"].startswith("tenant.")
         assert d["reason"] == "my-words" and d["reason_label"] == "my-words · test 2026-09-14" and "tenants" in d["forms"]
-    d = c.get("/api/drill/read-and-complete/next").json()
+    d = c.get("/api/drill/read-and-complete/next?mode=sentence").json()
     family, sense, seed = drills.parse_cloze_id(d["id"], main.BANK.index)
     assert family == "tenant" and d["reason"] == "my-words" and d["reason_label"] == "my-words · test 2026-09-14"
     text = main.EXAMPLES[(family, str(sense))]
@@ -97,11 +97,11 @@ def test_drills_draw_from_the_pool(practice, monkeypatch):
     r = c.post(f"/api/drill/read-and-complete/{d['id']}", json={"attempt": d["attempt"], "typed": gen["answers"], "ms": 1000}).json()
     assert r["family"] == "tenant" and "tenants" in r["forms"] and r["score"] == 1.0 and r["done"] == []
     rows = attempts(practice / "attempts.csv")
-    assert rows[-1]["events"] == "tenant:hit"                                                   # the target's blank was right
+    assert "tenant:hit" in rows[-1]["events"].split("|")                                        # the target's blank was right (#17: every blank)
     # a wrong target blank is a vocabulary miss for the family; the sentence itself is not drawn again this week
     r = c.post(f"/api/drill/read-and-complete/{d['id']}", json={"attempt": drills.attempt_id(), "typed": [], "ms": 1000}).json()
-    assert attempts(practice / "attempts.csv")[-1]["events"] == "tenant:vocabulary" and r["score"] == 0
-    assert not c.get("/api/drill/read-and-complete/next").json()["id"].startswith("tenant.")
+    assert "tenant:vocabulary" in attempts(practice / "attempts.csv")[-1]["events"].split("|") and r["score"] == 0
+    assert not c.get("/api/drill/read-and-complete/next?mode=sentence").json()["id"].startswith("tenant.")
     # the pool line of the report and of /api/learn agree with /api/config
     p = c.get("/api/progress").json()
     assert p["pool"]["total"] >= 2 and p["pool"]["my-words"] >= 2 and p["pool"]["done"] == {"cards": 0, "practice": 0}   # the wrong blanks joined

@@ -198,7 +198,7 @@ def test_drill_items_carry_b(practice):
     d = c.get("/api/drill/listen-and-type/next").json()
     row = next(r for r in drills.load_sentences() if r["id"] == d["id"])
     assert d["b"] == textdiff.b_of(row) == float(row["b_text"])
-    d = c.get("/api/drill/read-and-complete/next").json()
+    d = c.get("/api/drill/read-and-complete/next?mode=sentence").json()
     assert d["b"] > 0 and (practice / "cloze.csv").exists() and len(textdiff.load_cloze()) > 1000
     key = d["id"].rpartition(".")[0]
     assert d["b"] == textdiff.b_of(next(r for r in main.cloze_pool() if r["key"] == key))

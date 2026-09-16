@@ -1,6 +1,6 @@
 # Where the sentences come from, and what their band means
 
-The drills (`read-and-complete`, `listen-and-type`, `read-aloud`) show
+The drills (`read-and-complete`, `fill-in-the-blanks`, `listen-and-type`, `read-aloud`) show
 sentences tagged with a sub-band such as `4k-a`. This page records how that
 tag is made, how far it reflects the difficulty of the sentence, how the
 difficulty number `b_text` is computed from the sentence itself, and which
@@ -33,7 +33,7 @@ flowchart LR
 | Dictation bank | `senses.csv` | one row per family: the lowest sense whose example is 6–14 words and contains a form of the family | `app/drills.py` `build_sentences()` |
 | Cloze pool | `senses.csv` | same filter without the 14-word cap; the damaged words always include the target; cached with its `b_text` in `practice/read-and-complete/cloze.csv` | `app/main.py` `cloze_pool()` |
 | Sentence difficulty | the sentence's own words | `b_text` from the words' `b`, the length and the off-list count (below); `b_adjust` from own responses after 5 attempts | `app/textdiff.py`, the `b_text, b_adjust, features` columns |
-| Passage difficulty | `practice/read-and-complete/passages/*.md` | the same `b_text`, written into the front matter by `scripts/passages.py score` | `b_text:`, `b_adjust:`, `features:` |
+| Passage difficulty | `practice/read-and-complete/passages/*.md` | the same `b_text`, written into the front matter by `scripts/passages.py score` (the 440-passage bank of #17: `fetch`, then a read-through) | `b_text:`, `b_adjust:`, `features:` |
 
 `index.csv` also carries Zipf frequency (SUBTLEX-US), prevalence (Brysbaert
 2019) and Oxford CEFR per word. Zipf enters `b_text` (the mean over the
@@ -178,11 +178,11 @@ flowchart LR
 | Link | Exists? | How |
 |---|---|---|
 | word level → which sentence | yes | the target family comes from the priority pool (#13): words missed in the test or in practice first, then the frontier sub-band — the sub-band containing `θ` (`learn.priority_pool()`, [practice/README.md](../practice/README.md) § *Which item comes next*) |
-| word level → sentence difficulty | dictation: yes | `b_text` per sentence and passage (above); Listen and Type and Read Aloud draw from `\|b − θ\| ≤ 0.6` (#16, [det-adaptive.md](det-adaptive.md) § *Dictation*); the cloze drills still draw by the band tag until #17 |
+| word level → sentence difficulty | yes | `b_text` per sentence and passage (above); Listen and Type, Read Aloud and Fill in the Blanks draw from `\|b − θ\| ≤ 0.6` (#16, [det-adaptive.md](det-adaptive.md) § *Dictation*), Read and Complete from the passages in the same window (#17, § *Cloze*) |
 | sentence errors → my-words | yes | a wrong word that maps to an `index.csv` family → `learn.add_my_word(source = task)`; a hearing / spelling / form slip under `source = task:kind`, shown as *heard wrong*, never a card |
-| sentence errors → word status or level | dictation: yes | `learn.word_stats()` merges the `events` of `attempts.csv` with the test sessions: a `vocabulary` miss is a "no"; the credit moves `θ` (#16) |
-| sentence hits → evidence of knowing | dictation: yes | every content word typed right is a `hit` event; two hit days with no later miss make the word `known` |
-| kind of error (hearing, spelling, vocabulary) | dictation: yes | *ward → word* is `hearing` (same Metaphone key, `app/phon.py`), *tennant → tenant* `spelling`, a missing *evict* `vocabulary` — the table in [practice/README.md](../practice/README.md) § Listen and Type |
+| sentence errors → word status or level | yes | `learn.word_stats()` merges the `events` of `attempts.csv` with the test sessions: a `vocabulary` miss is a "no"; the credit moves `θ` (#16 dictation, #17 cloze and fill-in) |
+| sentence hits → evidence of knowing | yes | every content word typed right in a dictation, every content-word blank completed, the fill-in word: a `hit` event; two hit days with no later miss make the word `known` |
+| kind of error (hearing, spelling, vocabulary) | yes | *ward → word* is `hearing` (same Metaphone key, `app/phon.py`), *tennant → tenant* `spelling`, a missing *evict* `vocabulary` — the table in [practice/README.md](../practice/README.md) § Listen and Type; a cloze blank one letter off is `spelling`, else `vocabulary` |
 
 ## What would close the loop
 
@@ -193,16 +193,17 @@ put every word and the learner on one scale — a difficulty `b` per word
 `θ` that the level test now estimates word by word (Rasch model,
 [docs/det-adaptive.md](det-adaptive.md)). The difficulty number per
 sentence and passage (`b_text`, #15, *How difficulty is computed* above) is
-the second piece in place: dictation and cloze can now draw items with
-`b_text` near `θ` and feed their answers back into `θ` with partial credit
-(#16, #17), the way the level test already does for words — instead of
-drawing at random inside one band. The two items below are what the drills
-still need on top of it.
+the second piece in place: dictation, the C-test passages and Fill in the
+Blanks draw items with `b_text` near `θ` and feed their answers back into
+`θ` with partial credit (#16, #17), the way the level test already does for
+words — instead of drawing at random inside one band. The two items below
+are what the drills needed on top of it, and both are in place:
 
-1. **Drill evidence feeds word status.** A family heard and typed right on two
-   different days counts as known; wrong counts as missed. `word_stats()` then
-   merges test and drill evidence, and the Learn page and the frontier react
-   to what is heard, not only to what is clicked.
+1. **Drill evidence feeds word status.** A family heard, typed or completed
+   right on two different days counts as known; wrong counts as missed.
+   `word_stats()` merges test and drill evidence, and the Learn page and the
+   frontier react to what is heard and read, not only to what is clicked.
 2. **Error kinds.** Same-sound substitution (*ward / word*) is listening;
    the target family wrong is vocabulary; a near miss in letters is spelling.
-   Each gets its own tag in `my-words.csv` and its own follow-up drill.
+   Each gets its own tag in `my-words.csv`; a spelling or hearing slip never
+   becomes a card, the vocabulary misses lead the priority pool.

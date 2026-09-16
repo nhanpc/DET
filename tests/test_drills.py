@@ -199,7 +199,7 @@ def attempts(path):
 
 def test_cloze_and_dictation_api(practice):
     c = TestClient(main.app)
-    d = c.get("/api/drill/read-and-complete/next").json()
+    d = c.get("/api/drill/read-and-complete/next?mode=sentence").json()             # passage mode is the default since #17
     assert d["task"] == "read-and-complete" and d["mode"] == "sentence" and d["seconds"] == 60 and d["subband"] == "1k-a"
     assert 2 <= d["blanks"] <= 5 and sum(1 for p in d["pieces"] if isinstance(p, dict)) == d["blanks"]
     family, sense, seed = drills.parse_cloze_id(d["id"], main.BANK.index)
@@ -211,7 +211,8 @@ def test_cloze_and_dictation_api(practice):
     r = c.post(f"/api/drill/read-and-complete/{d['id']}", json={"attempt": d["attempt"], "typed": typed, "ms": 12345}).json()
     assert r["score"] == round((d["blanks"] - 1) / d["blanks"], 4) and r["correct"] == d["blanks"] - 1 and r["text"] == text
     assert r["wrong"] == [{"expected": gen["answers"][0], "typed": "zzz"}]
-    wrong_family = drills.family_of(gen["answers"][0], main.FORMS)
+    misses = [e for e in drills.cloze_events(gen["answers"], typed, main.LEX) if e["kind"] != "hit"]   # a content-word blank (#17)
+    wrong_family = misses[0]["family"] if misses else None
     rows = attempts(practice / "attempts.csv")
     assert len(rows) == 1 and rows[0]["task"] == "read-and-complete" and rows[0]["item"] == d["id"] and rows[0]["attempt"] == d["attempt"]
     assert rows[0]["subband"] == "1k-a" and rows[0]["seconds"] == "12" and rows[0]["timed_out"] == "0" and rows[0]["words"] == str(d["blanks"])
@@ -219,13 +220,13 @@ def test_cloze_and_dictation_api(practice):
     mw = learn.load_my_words()
     if wrong_family:
         assert [m["family"] for m in mw] == [wrong_family] and mw[0]["source"] == "read-and-complete" and mw[0]["note"] == text
-        assert r["added"] == [{"word": gen["answers"][0], "family": wrong_family, "in_index": True, "added": True}]
+        assert r["added"] == [{"word": gen["answers"][0], "family": wrong_family, "in_index": True, "kind": "vocabulary", "added": True}]
     else:
         assert mw == [] and r["added"] == []
     # the same sentence is not shown again this week
     key = f"{family}.{sense}"
     for _ in range(5):
-        assert not c.get("/api/drill/read-and-complete/next").json()["id"].startswith(key + ".")
+        assert not c.get("/api/drill/read-and-complete/next?mode=sentence").json()["id"].startswith(key + ".")
     assert c.post(f"/api/drill/read-and-complete/{d['id']}", json={"attempt": "bad", "typed": []}).status_code == 422
     assert c.post("/api/drill/read-and-complete/nofamily.9.9", json={"attempt": d["attempt"], "typed": []}).status_code == 404
     assert c.get("/api/drill/nope/next").status_code == 404
@@ -265,9 +266,9 @@ def test_cloze_and_dictation_api(practice):
     assert rows[-1]["theta"] == "" and float(rows[-1]["b"]) == bad["b"] and bad["theta"] is None   # no test yet: θ does not move
     open_ = {m["family"] for m in learn.open_my_words(learn.load_my_words())}
     assert families <= open_ and all(m["source"].split(":")[0] in ("read-and-complete", "listen-and-type") for m in learn.load_my_words())
-    # the study list shows them as my-words and the deck tags them `<subband> my-words` (#8's path, untouched)
+    # the study list shows them as my-words (or as a repeat when a cloze blank above missed the same word, #17)
     words = c.get("/api/learn?n=100").json()["words"]
-    assert {w["family"] for w in words if w["reason"] == "my-words"} >= families
+    assert {w["family"] for w in words if w["reason"] in ("my-words", "repeat")} >= families
     assert c.get("/api/config").json()["today"]["listen-and-type"] == 2
 
 

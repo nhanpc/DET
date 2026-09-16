@@ -225,6 +225,44 @@ its `(θ, credit)` pairs, and the per-word `events` (`hit`, `form`,
 miss is a "no", two hit days a "yes"; the other kinds are dictation matters
 and never change a word's status.
 
+## Cloze on the scale (issue #17)
+
+Read and Complete (the C-test) and Fill in the Blanks feed the same `θ`
+through the same update; the drill pages are
+[practice/README.md](../practice/README.md) § *Read and Complete* and
+§ *Fill in the Blanks*, the code `app/drills.py` (`passage_targets`,
+`passage_seed`, `cloze_events`, `fill_blank`) and `main.cloze_answer` /
+`main.fill_answer`.
+
+```mermaid
+flowchart LR
+    T["θ now<br/>drill_theta"] --> W["passages |b_text − θ| ≤ 0.6<br/>widened by 0.3 until 10"]
+    B[("passages/*.md<br/>440, b_text 3–12")] --> W
+    P["priority pool<br/>a family at the damaged parity"] --> W
+    W --> I["item: 5 blanks, the family's word inside<br/>Fill in: one word, first ⌈len/3⌉ letters"]
+    I --> C["credit = correct ÷ blanks<br/>fill-in: 1 / 0"] --> K["snap: ≥ 0.95 → 1<br/>≤ 0.2 → 0"] --> A[("attempts.csv<br/>theta, b, score, events")]
+    A --> T
+```
+
+| | Definition |
+|---|---|
+| **passage selection** | passages with `\|b − θ\| ≤ 0.6` (`b = b_text + b_adjust`), the window widened by 0.3 until it holds ten, not read in 30 days; the window is built around the middle of the frontier sub-band before the first reliable test |
+| **priority word** | among the passages in the window, one holding a form of a priority family at the damaged parity (2nd, 4th, … eligible word after the first sentence) is preferred with the pool's weights; the item's seed is chosen so the 5-blank window holds that word — the id `<slug>.<seed>` still replays the item |
+| **credit** | `correct ÷ blanks` per passage (exact letters per blank, case-insensitive); a fill-in item is 1 or 0 |
+| **response** | the credit enters the posterior as `P^s · (1 − P)^(1 − s)` against the passage's (or the sentence's) `b`, after `irt.snap()` — 4 of 5 blanks (0.8) stays the fraction it is, 5 of 5 is right, 1 of 5 (0.2) is wrong |
+| **events** | one per content-word blank: `hit`; `spelling` when the typed word is within one letter edit of the answer (the word was known); else `vocabulary`. Function-word blanks (`t__`) are scored but never word evidence. `word_stats` merges them like the dictation events |
+| **fill-in** | one sentence of the dictation bank from the same window and pool weights, the sentence's own family removed but for its first `⌈len / 3⌉` letters, 20 s; `b` is the sentence's; one event for the family |
+| **refit** | `textdiff.refit_bank()` after every answer: a passage's `b_adjust` from its `(θ, credit)` pairs (≥ 5 attempts) is written into its front matter, a sentence's into `cloze.csv` |
+
+Why the C-test credit is a fraction and not five separate responses: the
+five blanks of one passage are not independent (one topic, one register,
+the same reader on the same clock), and the DET reports the passage as one
+item. One fractional response per passage keeps a lucky passage from moving
+`θ` five times. The bottom of the passage scale is thin — a 50-word text
+rarely scores under `b_text` 4 (`b90` is the second-hardest word of ten or
+more content words) — so a learner below θ ≈ 4 sees the window widen to the
+easiest ten passages.
+
 ## How this differs from the real DET
 
 - **`b` is predicted from rank, not calibrated on responses.** Duolingo fits
@@ -237,12 +275,13 @@ and never change a word's status.
 - **One learner.** `A = 1.5` and the anchors are choices, not estimates; there
   is no population to fit them on. The DET estimate is the `vocab/subbands.csv`
   guess spread over the scale, not a prediction of a score.
-- **Yes/no on isolated words, plus dictation.** The DET's vocabulary items
-  (Read and Select, Listen and Select) are the same format, but its `θ` is fed
-  by every task type through one model. Here the level test and the dictation
-  drill (#16, fractional credit) feed one `θ`; the cloze drills (#17) are
-  next. The DET scores dictation with a polytomous model; `P^s · (1 − P)^(1 − s)`
-  is the one-parameter stand-in.
+- **Yes/no on isolated words, plus dictation and cloze.** The DET's vocabulary
+  items (Read and Select, Listen and Select) are the same format, but its `θ`
+  is fed by every task type through one model. Here the level test, the
+  dictation drill (#16, fractional credit), the C-test passages and Fill in
+  the Blanks (#17) feed one `θ`; speaking and writing stay self-rated. The
+  DET scores dictation and C-tests with polytomous models;
+  `P^s · (1 − P)^(1 − s)` is the one-parameter stand-in.
 - **Random inside the window, not "closest to θ".** The DET picks the item
   with maximum information; this test draws 10 at random from `|b − θ| ≤ 1`
   so that a block is a mixed bag and the same words do not come back at the
@@ -258,5 +297,6 @@ and never change a word's status.
 | `θ₀`, `θ`, `se` | `sessions/<id>.json`: `theta0`, per block `theta_from`, `theta`, `se`; `result.theta`, `result.se`, `result.frontier`, `result.det_estimate`, `result.det_range` |
 | per session | `levels.csv` columns `theta`, `se` (blank on rows from before #14; the header is upgraded on the next write) |
 | now | `GET /api/config` and `GET /api/progress`: `theta`, `se` (test + drills), `theta_test`, `theta_listen`, `se_listen`, `level`, `frontier`, `det_estimate`, `det_range`; `/api/progress` also `thetas` (one row per session), `theta_series` (the reliable ones) and `listening` (dictation count, error kinds of the last 14 days) |
-| per drill attempt | `practice/attempts.csv` columns `theta` (before the attempt), `b`, `score` (the credit), `events` |
+| per drill attempt | `practice/attempts.csv` columns `theta` (before the attempt), `b`, `score` (the credit), `events` — dictation (#16), Read and Complete and Fill in the Blanks (#17) |
+| per passage | `practice/read-and-complete/passages/<slug>.md` front matter: `b_text`, `b_adjust` (refit), `features` |
 | report | `vocab/progress.md` § *Ability over time*: one line per session and a chart of `θ` per test; § *Listening*: `θ_listen` next to the test's θ and the error kinds |

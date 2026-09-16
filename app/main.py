@@ -364,7 +364,8 @@ def add_words(words: list[str], task: str, note: str, map_only: bool) -> list[di
 def add_event_words(events: list[dict], task: str, note: str) -> list[dict]:
     """The wrong words of a drill's events (#16) → my-words, once per family: a `vocabulary` miss under
     `source = <task>`, a form / hearing / spelling slip under `<task>:<kind>` (learn.skill_source: shown as *heard
-    wrong*, never exported). Hits add nothing."""
+    wrong*, never exported). Hits add nothing. An event's own `note` (the sentence of a passage blank, #17)
+    beats `note`."""
     out, seen = [], set()
     for e in events:
         if e["kind"] == "hit" or e["family"] in seen:
@@ -372,8 +373,38 @@ def add_event_words(events: list[dict], task: str, note: str) -> list[dict]:
         seen.add(e["family"])
         source = task if e["kind"] == "vocabulary" else f"{task}:{e['kind']}"
         out.append({"word": e["word"], "family": e["family"], "in_index": True, "kind": e["kind"],
-                    "added": learn.add_my_word(e["family"], source, note)})
+                    "added": learn.add_my_word(e["family"], source, e.get("note") or note)})
     return out
+
+
+def theta_for_selection(st: dict) -> float:
+    """The θ the passage window is built around: the learner's θ, or the middle of the frontier sub-band before
+    the first reliable test (the sub-band's order − 0.5 on the b scale)."""
+    if st["theta"] is not None:
+        return st["theta"]
+    sb = next(b for b in SUBBANDS if b.name == st["frontier"])
+    return sb.order - 0.5
+
+
+def passage_pick(passages: list[dict], st: dict, pool_map: dict[str, tuple[str, int]], recent: set[str], rng: random.Random) -> tuple[Optional[dict], Optional[str], Optional[float]]:
+    """Passage mode selection (#17): the scored passages with |b − θ| ≤ DRILL_WINDOW, widened until ten
+    (drills.in_window), drawn by drills.pick_weighted with the weight of the heaviest priority family the
+    passage can damage (drills.passage_targets; a passage without one is a frontier item) and the 30-day
+    no-repeat set. Returns (passage, the family to damage or None, the window width)."""
+    scored = [p for p in passages if p["b_text"] is not None]
+    if not scored:
+        return None, None, None
+    window, width = drills.in_window(scored, theta_for_selection(st), textdiff.b_of)
+    targets = {p["slug"]: drills.passage_targets(p["text"], pool_map, LEX) for p in window}
+
+    def weight(p):
+        return max([pool_map[f][1] for f, _ in targets[p["slug"]]] + [drills.FRONTIER_WEIGHT])
+
+    p = drills.pick_weighted(window, recent, lambda p: p["slug"], weight, rng)
+    if p is None:
+        return None, None, width
+    best = [f for f, _ in targets[p["slug"]] if pool_map[f][1] == weight(p) and pool_map[f][1] > drills.FRONTIER_WEIGHT]
+    return p, (rng.choice(best) if best else None), width
 
 
 def priority(st: dict) -> tuple[dict, list[dict], dict[str, tuple[str, int]]]:
@@ -392,18 +423,25 @@ def target_view(family: str, stats: dict, my_words: list[dict], pool: dict[str, 
             "reason": reason if reason in learn.PRIORITY else "", "reason_label": learn.reason_label(family, reason, stats, my_words)}
 
 
+def forms_of(family: str) -> re.Pattern:
+    """drills.forms_pattern() of a family of the bank: its headword and members."""
+    return drills.forms_pattern(family, drills.members(BANK.index[family]))
+
+
 def weight_of(pool: dict[str, tuple[str, int]], fallback: int = 0):
     """The pick_weighted() weight of a bank row or cloze candidate: its family's pool weight, `fallback` outside it."""
     return lambda r: pool.get(r["family"], ("", fallback))[1]
 
 
 @app.get("/api/drill/{task}/next")
-def drill_next(task: str, mode: str = "sentence"):
+def drill_next(task: str, mode: str = "passage"):
     """A fresh item for `task` and the attempt id to answer it with. The vocabulary drills draw by
     learn.priority_pool() (#13: the words missed in the test or in practice first, the frontier last, through
-    drills.pick_weighted) — cloze from the sentence candidates of those families, dictation and Read Aloud from
-    the sentences near θ (#16) — and skip items shown in the last NO_REPEAT_DAYS days; prompts rotate the same
-    way. `mode=passage` = a hand-pasted passage (practice/read-and-complete/passages/)."""
+    drills.pick_weighted) — sentence-mode cloze from the sentence candidates of those families, dictation, Read
+    Aloud and Fill in the Blanks from the sentences near θ (#16, #17), passage mode from the passages near θ
+    (#17, passage_pick) — and skip items shown in the last NO_REPEAT_DAYS days (PASSAGE_REPEAT_DAYS for a
+    passage); prompts rotate the same way. Read and Complete: `mode=passage` (the default, the DET's C-test) or
+    `mode=sentence` (the 1-minute form)."""
     t = task_of(task)
     attempt = drills.attempt_id()
     recent = drills.recent_items(store.load_attempts(), task)
@@ -417,18 +455,22 @@ def drill_next(task: str, mode: str = "sentence"):
         return prompt_view(task, row, attempt)
     st = current_state()
     front = st["frontier"]
-    if task == "read-and-complete" and mode == "passage":
-        p = drills.pick(drills.load_passages(), recent, lambda p: p["slug"], rng)
+    stats, my_words, pool_map = priority(st)
+    if task == "read-and-complete" and mode != "sentence":
+        recent = drills.recent_items(store.load_attempts(), task, days=drills.PASSAGE_REPEAT_DAYS)
+        p, family, width = passage_pick(drills.load_passages(), st, pool_map, recent, rng)
         if p is None:
-            raise HTTPException(404, "no passage yet: paste one into practice/read-and-complete/passages/")
-        seed = rng.randrange(10_000)
+            raise HTTPException(404, "no scored passage: run `scripts/passages.py fetch` and `score`")
+        seed = drills.passage_seed(p["text"], forms_of(family), rng) if family else None
+        if seed is None:
+            family, seed = None, rng.randrange(10_000)
         item = drills.cloze(p["text"], seed, passage=True)
         if item is None:
             raise HTTPException(404, f"passage {p['slug']} yields fewer than {drills.MIN_BLANKS} blanks")
+        target = target_view(family, stats, my_words, pool_map) if family else {"family": "", "forms": [], "reason": "", "reason_label": ""}
         return {"task": task, "attempt": attempt, "id": drills.passage_id(p["slug"], seed), "mode": "passage",
                 "subband": "", "source": p.get("source", ""), "pieces": item["pieces"], "blanks": item["blanks"],
-                "seconds": t["passage_seconds"], "b": textdiff.b_of(p) if p["b_text"] is not None else None}
-    stats, my_words, pool_map = priority(st)
+                "seconds": t["passage_seconds"], "b": textdiff.b_of(p), "theta": st["theta"], "window": width, **target}
     if task == "read-and-complete":
         # sentence mode: the cloze candidates of the pool's families, weighted; the whole bank when none
         candidates = [c for c in cloze_pool() if c["family"] in pool_map] or cloze_pool()
@@ -440,10 +482,12 @@ def drill_next(task: str, mode: str = "sentence"):
         return {"task": task, "attempt": attempt, "id": drills.cloze_id(c["family"], c["sense"], seed), "mode": "sentence",
                 "subband": c["subband"], "pieces": item["pieces"], "blanks": item["blanks"], "seconds": t["seconds"],
                 "b": textdiff.b_of(c), **target_view(c["family"], stats, my_words, pool_map)}
-    # listen-and-type and read-aloud: the dictation bank near θ (|b − θ| ≤ 0.6, widened until 10 candidates,
-    # issue #16), the frontier sub-band before the first reliable test; inside the window the pool weights
-    # (#13) — a sentence outside the pool counts as a frontier one, so the window stays wide
+    # listen-and-type, read-aloud and fill-in-the-blanks: the dictation bank near θ (|b − θ| ≤ 0.6, widened until
+    # 10 candidates, issue #16), the frontier sub-band before the first reliable test; inside the window the pool
+    # weights (#13) — a sentence outside the pool counts as a frontier one, so the window stays wide
     bank = sentence_bank()
+    if task == "fill-in-the-blanks":
+        bank = [r for r in bank if drills.fill_blank(r["sentence"], forms_of(r["family"])) is not None]
     if st["theta"] is not None:
         pool, width = drills.in_window(bank, st["theta"], textdiff.b_of)
     else:
@@ -455,6 +499,10 @@ def drill_next(task: str, mode: str = "sentence"):
          "b": textdiff.b_of(row), "theta": st["theta"], "window": width, **target_view(row["family"], stats, my_words, pool_map)}
     if task == "read-aloud":
         return {**d, "sentence": row["sentence"], "min": 0}
+    if task == "fill-in-the-blanks":
+        item = drills.fill_blank(row["sentence"], forms_of(row["family"]))
+        return {**d, "id": drills.fill_id(row["family"], row["id"].split(".")[1]), "pieces": item["pieces"], "keep": item["keep"],
+                "words": drills.word_count(row["sentence"])}
     speech(row["sentence"], row["voice"])
     return {**d, "audio_url": f"/api/drill/{task}/{row['id']}/audio", "plays_left": t["plays"], "words": drills.word_count(row["sentence"])}
 
@@ -553,6 +601,90 @@ def dictation_answer(item: str, a: DrillAnswer, row: dict) -> dict:
             "done": close_rows()}
 
 
+def scale_after(st: dict, row: dict, b: float, score: float, events: list[dict]) -> dict:
+    """What every drill on the scale does once its row is scored (#16, #17): `theta` (before), `b` and `events`
+    into the row, the row appended, θ after it — the fields the result screen shows."""
+    row.update(score=score, theta=st["theta"], b=b, events=drills.events_column(events))
+    store.append_attempt(row)
+    after = learn.drill_theta(st["thetas"], store.load_attempts())
+    return {"b": b, "theta": st["theta"], "se": st["se"], "theta_after": after[0] if after else None,
+            "se_after": after[1] if after else None}
+
+
+def cloze_answer(item: str, a: DrillAnswer, row: dict) -> dict:
+    """Read and Complete (#17 on the scale): the item is regenerated from its id; `credit = correct / blanks` is
+    the score and, through irt.snap(), the response that moves θ against the sentence's or passage's `b`; every
+    content-word blank is an event (drills.cloze_events: hit / spelling / vocabulary) that feeds word_stats and
+    my-words (a passage blank's note is its sentence). After the row the item's `b_adjust` is refit from every
+    attempt (textdiff.refit_bank) — the cloze cache or the passage's front matter rewritten when it moved."""
+    st = current_state()
+    family, sense, seed = drills.parse_cloze_id(item, BANK.index)
+    passages: list[dict] = []
+    if sense is not None:
+        ex = EXAMPLES.get((family, str(sense)))
+        if not ex:
+            raise HTTPException(404, f"unknown sense {family}.{sense}")
+        gen = drills.cloze(ex, seed, forms_of(family))
+        row["subband"] = BANK.index[family]["subband"]
+        source = next((c for c in cloze_pool() if c["key"] == f"{family}.{sense}"), None)
+        b = textdiff.b_of(source) if source else textdiff.b_text(ex, LEX)
+    else:
+        passages = drills.load_passages()
+        p = next((p for p in passages if p["slug"] == family), None)
+        if p is None:
+            raise HTTPException(404, f"unknown passage {family!r}")
+        ex = p["text"]
+        gen = drills.cloze(ex, seed, passage=True)
+        b = textdiff.b_of(p) if p["b_text"] is not None else textdiff.b_text(ex, LEX)
+    if gen is None:
+        raise HTTPException(409, f"{item} yields no item")
+    typed = a.typed if isinstance(a.typed, list) else [a.typed]
+    score, wrong = drills.score_cloze(gen["answers"], typed)
+    events = drills.cloze_events(gen["answers"], typed, LEX)
+    if sense is None:
+        for e in events:
+            e["note"] = drills.sentence_of(ex, e["word"])
+    added = add_event_words(events, "read-and-complete", ex)
+    row.update(words=gen["blanks"], errors=drills.errors_column(wrong))
+    scale = scale_after(st, row, b, score, events)
+    attempts = store.load_attempts()
+    if sense is not None:
+        if textdiff.refit_bank(cloze_pool(), attempts, "read-and-complete", textdiff.strip_seed, "key"):
+            textdiff.write_cloze(cloze_pool())
+    elif textdiff.refit_bank(passages, attempts, "read-and-complete", textdiff.strip_seed, "slug"):
+        for q in passages:
+            textdiff.set_passage_adjust(drills.PASSAGES / f"{q['slug']}.md", q["b_adjust"])
+    target = target_view(family, {}, [], {}) if sense is not None else {"family": "", "forms": [], "reason": "", "reason_label": ""}
+    return {"attempt": row["attempt"], "score": score, "credit": score, "blanks": gen["blanks"], "correct": gen["blanks"] - len(wrong),
+            "text": ex, "answers": gen["answers"], "wrong": [{"expected": w, "typed": g} for w, g in wrong], "events": events,
+            "added": added, "timed_out": a.timed_out, "done": close_rows(), **scale, **target}
+
+
+def fill_answer(item: str, a: DrillAnswer, row: dict) -> dict:
+    """Fill in the Blanks (#17): `<family>.<sense>.fb` → the bank sentence, the item regenerated, the typed word
+    against the answer — exact letters, case-insensitive — credit 1 / 0 against the sentence's `b`, one event
+    for the target family (hit / spelling / vocabulary), the θ before and after."""
+    st = current_state()
+    try:
+        sid = drills.parse_fill_id(item)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    s = sentence_row(sid)
+    gen = drills.fill_blank(s["sentence"], forms_of(s["family"]))
+    if gen is None:
+        raise HTTPException(409, f"{item} yields no item")
+    typed = a.typed if isinstance(a.typed, str) else " ".join(a.typed)
+    kind = drills.blank_kind(gen["answer"], typed)
+    events = [{"family": s["family"], "kind": kind, "word": gen["answer"], "typed": typed.strip()}]
+    added = add_event_words(events, "fill-in-the-blanks", s["sentence"])
+    wrong = [] if kind == "hit" else [(gen["answer"], typed.strip())]
+    row.update(subband=s["subband"], words=1, errors=drills.errors_column(wrong))
+    scale = scale_after(st, row, textdiff.b_of(s), 1.0 if kind == "hit" else 0.0, events)
+    return {"attempt": row["attempt"], "score": row["score"], "credit": row["score"], "answer": gen["answer"],
+            "typed": typed.strip(), "kind": kind, "sentence": s["sentence"], "pieces": gen["pieces"], "events": events,
+            "added": added, "timed_out": a.timed_out, "done": close_rows(), **scale, **target_view(s["family"], {}, [], {})}
+
+
 def close_rows() -> list[str]:
     """After a drill answer: the open my-words rows whose family was hit on HIT_DAYS days are marked done
     (learn.practice_done, #13) — the families closed, for the result screen."""
@@ -568,36 +700,9 @@ def drill_answer(task: str, item: str, a: DrillAnswer):
     row = {"date": attempt[:10], "attempt": attempt, "task": task, "item": item, "subband": "",
            "seconds": round(a.ms / 1000), "timed_out": a.timed_out, "score": "", "self": "", "words": "", "errors": "", "file": ""}
     if task == "read-and-complete":
-        family, sense, seed = drills.parse_cloze_id(item, BANK.index)
-        if sense is not None:
-            ex = EXAMPLES.get((family, str(sense)))
-            if not ex:
-                raise HTTPException(404, f"unknown sense {family}.{sense}")
-            gen = drills.cloze(ex, seed, drills.forms_pattern(family, drills.members(BANK.index[family])))
-            row["subband"] = BANK.index[family]["subband"]
-        else:
-            p = next((p for p in drills.load_passages() if p["slug"] == family), None)
-            if p is None:
-                raise HTTPException(404, f"unknown passage {family!r}")
-            ex = p["text"]
-            gen = drills.cloze(ex, seed, passage=True)
-        if gen is None:
-            raise HTTPException(409, f"{item} yields no item")
-        typed = a.typed if isinstance(a.typed, list) else [a.typed]
-        score, wrong = drills.score_cloze(gen["answers"], typed)
-        added = add_words([w for w, _ in wrong], task, ex, map_only=True)
-        row.update(score=score, words=gen["blanks"], errors=drills.errors_column(wrong))
-        events = []
-        if sense is not None:                     # the target family's blank: a hit or a miss (#13; #17 adds every blank)
-            pat = drills.forms_pattern(family, drills.members(BANK.index[family]))
-            missed = any(pat.match(w) for w, _ in wrong)
-            events = [{"family": family, "kind": "vocabulary" if missed else "hit"}]
-            row["events"] = drills.events_column(events)
-        store.append_attempt(row)
-        target = target_view(family, {}, [], {}) if sense is not None else {"family": "", "forms": [], "reason": "", "reason_label": ""}
-        return {"attempt": attempt, "score": score, "blanks": gen["blanks"], "correct": gen["blanks"] - len(wrong),
-                "text": ex, "answers": gen["answers"], "wrong": [{"expected": w, "typed": g} for w, g in wrong],
-                "added": added, "timed_out": a.timed_out, "done": close_rows(), **target}
+        return cloze_answer(item, a, row)
+    if task == "fill-in-the-blanks":
+        return fill_answer(item, a, row)
     if task == "listen-and-type":
         return dictation_answer(item, a, row)
     # speaking and writing: the self-rating (mean of four lines, half up) and the "words I lacked" box

@@ -295,6 +295,19 @@ def score_passage(path: Path, lex: Lexicon) -> tuple[dict, bool]:
     return new, True
 
 
+def set_passage_adjust(path: Path, b_adjust: float) -> bool:
+    """Write a refit `b_adjust` into a passage's front matter (the rest of the file untouched); False when the
+    value already stands there."""
+    meta, body = passage_front_matter(path)
+    value = str(round(float(b_adjust), 4)).rstrip("0").rstrip(".") if float(b_adjust) else "0"
+    if meta.get("b_adjust", "0") == value:
+        return False
+    new = {**meta, "b_adjust": value}
+    head = "\n".join(f"{k}: {v}" for k, v in new.items())
+    path.write_text(f"---\n{head}\n---\n{body.lstrip(chr(10))}", encoding="utf-8")
+    return True
+
+
 # ---- the report ---------------------------------------------------------------------------------------------
 
 BINS = [(0, 2), (2, 4), (4, 6), (6, 8), (8, 10), (10, 12), (12, 99)]
