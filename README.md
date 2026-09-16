@@ -11,6 +11,7 @@ Duolingo English Test (DET). 120 is the first **C1** score.
 | CEFR | C1 |
 | ≈ IELTS / TOEFL | 7.0 / 95+ |
 | Vocabulary | ~5,000–6,500 word families + Academic Word List |
+| Target test date | **2027-03-03** (not booked; set 2026-09-16, issue #7, baseline in [vocab/progress.md](vocab/progress.md)) |
 
 ## The test in one table
 
@@ -154,8 +155,8 @@ DET/
 │   ├── pseudowords.csv          # invented words for the yes/no test (British Lexicon Project)
 │   ├── my-words.csv             # words met in practice
 │   ├── decks/                   # Anki exports from the study list (one card per family)
-│   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json
-│   └── progress.md              # % known per sub-band → estimated level
+│   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json; mocks.csv (hand-typed)
+│   └── progress.md              # baseline (hand-written) / generated report
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)

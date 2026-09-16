@@ -15,15 +15,24 @@ flowchart TD
 
 ## Phase 0 — Baseline
 
-Goal: know the starting point.
+Goal: know the starting point. Specified in issue #7.
 
-- [ ] Take one free DET practice test; record score + subscores in
-      `progress.md`.
-- [ ] Take a free yes/no vocabulary test (e.g. testyourvocab.com or LexTALE);
-      record estimated size.
-- [ ] Set the target test date.
+- [ ] Take one free DET practice test; record it as row 1 of
+      `vocab/tests/mocks.csv` (low end of the range as `overall`, `weakest`
+      from the self-review) and point to it from `vocab/progress.md`.
+- [ ] Take a free yes/no vocabulary test (LexTALE; testyourvocab.com
+      optional); record the result in `vocab/progress.md`.
+- [x] Set the target test date: 2027-03-03, not booked (README § Goal,
+      `vocab/progress.md`).
+- [x] Copy the first level-test rows (`vocab/tests/levels.csv`) and the
+      pooled sub-band table from *What to learn* into `vocab/progress.md`.
 
-Output: `progress.md` with a dated first row.
+Output: `vocab/progress.md` — a hand-written baseline section on top and an
+empty block between `<!-- generated:start -->` / `<!-- generated:end -->`
+markers that Phase 4 rewrites — plus `vocab/tests/mocks.csv` (header only
+until the practice test is taken). Status: in progress (#7); the files and the
+target date are in, the two tests and one more level-test session on a later
+day are manual and still to do.
 
 ## Phase 1 — Word lists & sub-bands
 
@@ -113,7 +122,11 @@ Goal: see the level move smoothly over time.
 
 1. `scripts/report.py` — reads `vocab/tests/results.csv` and Anki stats
    (optional) and rewrites `vocab/progress.md`: table of % known per
-   sub-band, estimated level, and a Mermaid line of scores over time.
+   sub-band, estimated level, and a Mermaid line of scores over time. It
+   replaces only the text between the `<!-- generated:start -->` and
+   `<!-- generated:end -->` markers (each alone on its line, exactly once)
+   and never touches the hand-written baseline above them; the full rule
+   table is in issue #7 § 6, implemented by #9.
 2. Map highest mastered sub-band → estimated DET range (table in README).
 
 Output: `progress.md` updated weekly.
