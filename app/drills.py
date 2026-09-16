@@ -11,6 +11,8 @@ Listen and Type     build_sentences(): the dictation bank (one 6–14-word examp
 Read Aloud, speaking and writing tasks: TASKS holds the real DET timings (docs/det-format.md); the prompts
 come from practice/{speaking,writing}/prompts.csv; the self-rating is the mean of four 1–5 lines.
 Every wrong or lacked word goes through family_of() → learn.add_my_word(family, source=<task>, note=…).
+Selection (issue #13): pick() is a uniform draw of an item not shown in NO_REPEAT_DAYS; pick_weighted() the same
+with the family weights of learn.priority_pool(), the missed words first.
 """
 from __future__ import annotations
 
@@ -42,6 +44,8 @@ MIN_WORDS, MAX_WORDS = 6, 14        # example length for the drills (cloze: ≥ 
 MIN_BLANKS, MAX_BLANKS = 2, 5       # blanks per cloze item; fewer → the item is skipped, more → a window of MAX_BLANKS
 PLAYS = 3                           # dictation and Listen Then Speak: how often the audio may be played
 NO_REPEAT_DAYS = 7                  # an item shown in the last week is not drawn again
+PRIORITY_SHARE = 0.5                # pick_weighted(): P(the draw comes from the priority items, weight > FRONTIER_WEIGHT)
+FRONTIER_WEIGHT = 1                 # the weight of a frontier family in learn.priority_pool(); above it = priority
 DRILL_WINDOW, DRILL_STEP, DRILL_MIN = 0.6, 0.3, 10   # |b − θ| ≤ 0.6, widened by 0.3 until 10 candidates (#16)
 EVENT_KINDS = ("hit", "form", "hearing", "spelling", "vocabulary")   # what a heard or read word tells us (#16)
 SKILL_KINDS = ("form", "hearing", "spelling")                        # the kinds that are not vocabulary evidence
@@ -468,6 +472,24 @@ def pick(pool: list, recent: set[str], key, rng: random.Random):
     """A random item whose key is not in `recent`; any item once everything was shown this week; None when empty."""
     fresh = [p for p in pool if key(p) not in recent]
     return rng.choice(fresh or pool) if pool else None
+
+
+def pick_weighted(pool: list, recent: set[str], key, weight, rng: random.Random, share: Optional[float] = None):
+    """random.choices over the items not in `recent` with `weight(item)` (issue #13); items of weight 0 are
+    dropped. When the fresh items include a priority one (weight > FRONTIER_WEIGHT), the draw comes from those
+    with probability `share`, else from the weighted union — a small pool of missed words is neither drowned by
+    500 frontier words nor allowed to drown them. Every weighted item shown this week → pick() over all of them;
+    nothing with a weight → None."""
+    weighted = [(p, weight(p)) for p in pool]
+    weighted = [(p, w) for p, w in weighted if w > 0]
+    if not weighted:
+        return None
+    fresh = [(p, w) for p, w in weighted if key(p) not in recent]
+    if not fresh:
+        return pick([p for p, _ in weighted], recent, key, rng)
+    priority = [(p, w) for p, w in fresh if w > FRONTIER_WEIGHT]
+    draw = priority if priority and rng.random() < (PRIORITY_SHARE if share is None else share) else fresh
+    return rng.choices([p for p, _ in draw], [w for _, w in draw])[0]
 
 
 def today_counts(attempts: Iterable[dict], today: Optional[date] = None) -> dict[str, int]:

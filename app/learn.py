@@ -18,6 +18,11 @@ Study order: repeat → my-words (open rows of vocab/my-words.csv, issue #8; a r
 source `<task>:<kind>`, shows as *heard wrong* and is never exported) → missed in the frontier sub-band →
 other misses (newest first) → shaky → the rest of the frontier sub-band by rank.
 
+The priority pool (priority_pool(), issue #13): the study list without the batch cap as family → (reason, weight)
+— my-words and repeat 6, missed 3, shaky 2, frontier 1 — the order every drill draws in (drills.pick_weighted).
+drill_hits() reads the `hit` events back; practice_done() marks an open my-words row done once its family was
+hit on HIT_DAYS different days with no error in between (`done = <date> practice`, next to the deck exports).
+
 The ability θ of the drills (drill_theta(), #16): the last reliable test's posterior, N(θ, se²), updated by every
 scored drill attempt since it (rows with a `b`, the item's difficulty, and a `score`, the credit, through
 irt.snap()); θ_listen is the same with the dictation attempts only.
@@ -55,6 +60,9 @@ STATUSES = ("repeat", "missed", "learned", "shaky", "known")   # WordStat.status
 HEARD_WRONG = "heard wrong"                                      # study-list reason of a my-words row from a skill slip
 DRILL_TASKS = ("listen-and-type", "read-and-complete", "fill-in-the-blanks")   # drills whose score is a credit on the scale
 HIT_DAYS = 2                                                    # drill hits on this many days = a right answer / row done
+WEIGHTS = {"my-words": 6, "repeat": 6, "missed": 3, "shaky": 2, "frontier": 1}   # priority_pool() tiers (#13)
+PRIORITY = ("my-words", "repeat", "missed", "shaky")            # the tiers that make a family a priority word
+BY_PRACTICE = "practice"                                        # the suffix of `done` on a my-words row closed by drill hits
 
 
 @dataclass
@@ -338,6 +346,85 @@ def study_list(stats: dict[str, WordStat], front: str, index: dict[str, dict], s
     return picked
 
 
+def priority_pool(stats: dict[str, WordStat], my_words: Iterable[dict], index: dict[str, dict], front: str) -> dict[str, tuple[str, int]]:
+    """Family → (reason, weight) for every family a drill may draw, in study_list() order and without its cap
+    (issue #13): `repeat` and open `my-words` rows (drill errors, lacked words, pins — heard-wrong rows too) at
+    WEIGHTS 6, `missed` 3 (frontier sub-band first), `shaky` 2, then the `frontier` families never shown at 1. A
+    family outside `index` (an *extra* my-words entry) has no sentence and is left out; one entry per family,
+    the first reason wins."""
+    newest = sorted((w for w in stats.values() if w.word in index), key=lambda w: w.last_at, reverse=True)
+    pool: dict[str, tuple[str, int]] = {}
+
+    def take(words, reason):
+        for word in words:
+            if word in index and word not in pool:
+                pool[word] = (reason, WEIGHTS[reason])
+
+    take([w.word for w in newest if w.status == "repeat"], "repeat")
+    take([r["family"] for r in my_words], "my-words")
+    take([w.word for w in newest if w.status == "missed" and w.subband == front], "missed")
+    take([w.word for w in newest if w.status == "missed"], "missed")
+    take([w.word for w in newest if w.status == "shaky"], "shaky")
+    rest = sorted((r for r in index.values() if r["subband"] == front and WORD.match(r["family"]) and r["family"] not in stats),
+                  key=lambda r: int(r["rank"]))
+    take([r["family"] for r in rest], "frontier")
+    return pool
+
+
+def pool_counts(pool: dict[str, tuple[str, int]]) -> dict[str, int]:
+    """`total` = the priority families (PRIORITY tiers) and one count per reason — the practice-page header."""
+    counts = {k: 0 for k in WEIGHTS}
+    for reason, _ in pool.values():
+        counts[reason] += 1
+    return {"total": sum(counts[k] for k in PRIORITY), **counts}
+
+
+def reason_label(family: str, reason: str, stats: dict[str, WordStat], my_words: Iterable[dict] = ()) -> str:
+    """The chip on a drill item: `missed 2× in the test`, `missed in the test`, `my-words · listen-and-type
+    2026-09-14`, `shaky`; "" for a frontier word."""
+    if reason == "repeat" or reason == "missed":
+        n = stats[family].missed if family in stats else 1
+        return f"missed {n}× in the test" if n > 1 else "missed in the test"
+    if reason == "my-words":
+        row = next((r for r in my_words if r["family"] == family), None)
+        return f"my-words · {row['source']} {row['date']}" if row else "my-words"
+    return reason if reason == "shaky" else ""
+
+
+def drill_hits(attempts: Iterable[dict], since: str = "") -> dict[str, set[str]]:
+    """Family → the days it was a `hit` in a drill (the `events` column) after its last error there, counting
+    only rows dated `since` or later — a hit followed by an error starts over."""
+    out: dict[str, set[str]] = {}
+    rows = sorted((r for r in attempts if r.get("events") and r["date"] >= since), key=attempt_time)
+    for r in rows:
+        for family, kind in parse_events(r["events"]):
+            if kind == "hit":
+                out.setdefault(family, set()).add(r["date"])
+            else:
+                out.pop(family, None)
+    return out
+
+
+def practice_done(rows: list[dict], attempts: Iterable[dict], day: date, path: Optional[Path] = None) -> list[str]:
+    """Close the open my-words rows whose family has drill hits on HIT_DAYS different days since the row was
+    added, with no error after them (drill_hits from the row's date) — the rule the Learn page applies to cards,
+    fed by practice. Returns the families marked done (`done = <day> practice`)."""
+    attempts = list(attempts)
+    done = [r["family"] for r in rows if not r["done"] and len(drill_hits(attempts, r["date"]).get(r["family"], ())) >= HIT_DAYS]
+    if done:
+        mark_done(done, day, path, BY_PRACTICE)
+    return done
+
+
+def done_counts(rows: Iterable[dict]) -> dict[str, int]:
+    """How many my-words rows were closed by a deck export (`cards`) and by drill hits (`practice`)."""
+    counts = {"cards": 0, "practice": 0}
+    for r in rows:
+        if r["done"]:
+            counts["practice" if r["done"].endswith(BY_PRACTICE) else "cards"] += 1
+    return counts
+
+
 def subband_entries(subband: str, index: dict[str, dict], stats: dict[str, WordStat], synonyms: dict[str, list[str]],
                     examples: Optional[dict[str, list[str]]] = None) -> list[dict]:
     """Every family of one sub-band that the test can show (WORD), by rank — the whole-sub-band deck.
@@ -370,7 +457,7 @@ def skill_source(source: str) -> bool:
 # ---- vocab/my-words.csv: words met in practice (date, family, source, note, done) ------------------------
 
 def load_my_words(path: Optional[Path] = None) -> list[dict]:
-    """Every row, oldest first; `done` is the export date or blank."""
+    """Every row, oldest first; `done` is the export date (`<date> practice` when drill hits closed it) or blank."""
     path = path or MY_WORDS
     if not path.exists():
         return []
@@ -408,14 +495,15 @@ def add_my_word(family: str, source: str, note: str = "", day: Optional[date] = 
     return True
 
 
-def mark_done(families: Iterable[str], day: date, path: Optional[Path] = None) -> int:
-    """Set `done = day` on the open row of each family (after a deck that holds them was written)."""
+def mark_done(families: Iterable[str], day: date, path: Optional[Path] = None, how: str = "") -> int:
+    """Set `done = day` on the open row of each family (after a deck that holds them was written); `how` =
+    BY_PRACTICE appends the word, so the two ways a row closes stay apart (done_counts)."""
     wanted, n = set(families), 0
     path = path or MY_WORDS
     rows = load_my_words(path)
     for r in rows:
         if r["family"] in wanted and not r["done"]:
-            r["done"], n = day.isoformat(), n + 1
+            r["done"], n = f"{day.isoformat()} {how}".strip(), n + 1
     if n:
         _write_my_words(rows, path)
     return n

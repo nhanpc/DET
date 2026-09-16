@@ -10,9 +10,9 @@ every word you got wrong or lacked lands in `vocab/my-words.csv` through
 
 | `task` | Drill | Items from | Clock | Scored |
 |---|---|---|---|---|
-| `read-and-complete` | cloze: complete the damaged words (first letters given) | *sentence mode*: `vocab/senses.csv` examples of the frontier sub-band and the study list; *passage mode*: `read-and-complete/passages/*.md` | 1 min / 3 min | correct blanks ÷ blanks |
-| `listen-and-type` | dictation: play ≤ 3 times, type the sentence | `listen-and-type/sentences.csv`, sentences with `b` near `θ` (frontier sub-band before the first test), edge-tts audio | 1 min | credit = 1 − character edits ÷ length; moves `θ` |
-| `read-aloud` | read the sentence; record | the same sentence bank | 20 s | self-rating |
+| `read-and-complete` | cloze: complete the damaged words (first letters given) | *sentence mode*: `vocab/senses.csv` examples of the priority pool's families (missed words first, then the frontier sub-band); *passage mode*: `read-and-complete/passages/*.md` | 1 min / 3 min | correct blanks ÷ blanks |
+| `listen-and-type` | dictation: play ≤ 3 times, type the sentence | `listen-and-type/sentences.csv`, sentences with `b` near `θ` (frontier sub-band before the first test), the priority pool's families first, edge-tts audio | 1 min | credit = 1 − character edits ÷ length; moves `θ` |
+| `read-aloud` | read the sentence; record | the same sentence bank, the same order | 20 s | self-rating |
 | `speak-photo` | describe a photo; record | `speaking/photos/` (any image; a `prompts.csv` row can give it a prompt) | 20 s prep, 30–90 s | self-rating |
 | `read-then-speak` | speak on a written prompt; record | `speaking/prompts.csv` | 20 s prep, 30–90 s | self-rating |
 | `listen-then-speak` | the prompt is read aloud (≤ 3 plays); record | `speaking/prompts.csv`, edge-tts | 20 s prep, 30–90 s | self-rating |
@@ -36,7 +36,7 @@ Interactive Reading / Listening and the Samples: notes only, in
 
 ```mermaid
 flowchart LR
-    F["Frontier sub-band<br/>learn.frontier · θ window (dictation)"] --> G[Item generator<br/>app/drills.py]
+    F["Priority pool<br/>learn.priority_pool · θ window (dictation)"] --> G[Item generator<br/>app/drills.py]
     S[(senses.csv<br/>index.csv members)] --> G
     P[(prompts.csv<br/>passages/, photos/)] --> G
     G --> D[Timed drill screen<br/>#drill/task]
@@ -44,7 +44,87 @@ flowchart LR
     D -->|"drafts, recordings"| K[(writing/drafts<br/>speaking/recordings)]
     D -->|"wrong or lacked words → family<br/>learn.add_my_word(source = task)"| M[(vocab/my-words.csv)]
     M --> L[What to learn<br/>reason = my-words] --> X[Anki export<br/>tag = subband my-words]
+    M --> F
+    D -->|"hit on 2 days"| M
 ```
+
+## Which item comes next: the priority pool
+
+Every drill knows which family an item was built for (`id = family.sense`),
+and since issue #13 every vocabulary drill uses that link the same way:
+**the words you missed come first** — in the level test (`repeat`, `missed`,
+`shaky`) and in practice (open `vocab/my-words.csv` rows: cloze and
+dictation errors, pins, *words I lacked*). The selection window on the θ/b
+scale comes from #16 (dictation: `|b − θ| ≤ 0.6`) and #17 (cloze passages);
+the pool decides the **order inside the window**.
+
+```mermaid
+flowchart LR
+    T["level test<br/>repeat · missed · shaky"] --> P
+    C["cloze / dictation errors"] --> M[("my-words.csv<br/>open rows")] --> P
+    L["words I lacked · Pin"] --> M
+    P{{"priority pool<br/>learn.priority_pool<br/>family → tier, weight"}} --> RC["read-and-complete"]
+    P --> LT["listen-and-type<br/>read-aloud"]
+    P --> FB["fill-in-the-blanks (#17)"]
+    RC & LT & FB -->|"hit on 2 days"| D["my-words row → done by practice"]
+    D -.->|"leaves the pool"| P
+```
+
+`learn.priority_pool(stats, my_words, index, front)` → family →
+`(reason, weight)`, the study list without its batch cap, so the Learn page
+and the drills agree:
+
+| Tier | Reason | Source | Weight |
+|---|---|---|---|
+| 1 | `repeat` | missed twice in the level test | 6 |
+| 1 | `my-words` | open `vocab/my-words.csv` rows (drill errors, lacked words, pins; *heard wrong* rows too) | 6 |
+| 2 | `missed` | missed once (frontier sub-band first) | 3 |
+| 3 | `shaky` | right, but slow | 2 |
+| 4 | `frontier` | the frontier sub-band, never shown | 1 |
+
+A family outside `index.csv` (an *extra* my-words entry) has no sentence and
+is skipped. `drills.pick_weighted(pool, recent, key, weight, rng)` draws with
+`random.choices` over the items not shown in the last `NO_REPEAT_DAYS`, by
+the family weight; weight-0 items are never drawn; when every weighted item
+was shown this week it falls back to `pick()`. With a pool of 10 tier-1 words
+against 500 frontier words the weights alone would give the missed words
+11 % of the draws, so `PRIORITY_SHARE = 0.5` applies first: when any tier
+1–3 family is available, the draw comes from those with probability 0.5,
+otherwise from the weighted union — a small pool neither drowns in the
+frontier nor stops the frontier from moving. The no-repeat rule is on the
+**item** (sentence id), not the family: a priority family with three
+example sentences can come back in another sentence the same week.
+
+Per drill:
+
+- **`read-and-complete`** (sentence mode): the cloze candidates whose family
+  is in the pool (any tier), weighted; the target family is always one of the
+  damaged words. Passage mode is unchanged.
+- **`listen-and-type`, `read-aloud`**: the #16 window first (`|b − θ| ≤ 0.6`,
+  the frontier sub-band before the first test), then the pool weights inside
+  it; a sentence whose family is outside the pool counts as a frontier one
+  (weight 1) so the window stays wide. Fallback to the whole bank stays.
+- **`fill-in-the-blanks`** (#17): the missing word is drawn from the pool
+  with the same weights — `priority_pool()` and `pick_weighted()` are the
+  hook.
+
+**Closing the loop.** A family is a *hit* in an attempt when its `events`
+entry says so (the target's blank in a cloze item, every content word typed
+right in a dictation — the same `hit` event #16 writes). On every drill
+answer `learn.practice_done()` marks an open my-words row done once its
+family has hits on **two different days** since the row was added with no
+error in between (`learn.drill_hits()`); the row's `done` reads `<date>
+practice`, next to the plain export date of a row closed by a deck, and the
+Learn page and `GET /api/progress` count the two apart (`done by cards`,
+`done by practice`).
+
+**Showing the why.** The item screen carries a chip with the reason — `missed
+2× in the test`, `my-words · listen-and-type 2026-09-14`, `shaky`, nothing
+for a frontier word; the result screens of cloze and dictation mark the
+target family in the sentence; the practice page header reads `priority
+pool: 23 words (my-words 9 · repeat 4 · missed 7 · shaky 3)`, the same
+numbers `GET /api/progress` returns under `pool` and `vocab/progress.md`
+prints under *Words*.
 
 ## How each drill runs
 
@@ -99,9 +179,11 @@ flowchart LR
 
 - **Selection.** After the first reliable test the item is drawn from the
   sentences whose `b` (`b_text + b_adjust`) lies within `±0.6` of the current
-  `θ`, the window widened by `0.3` until it holds ten candidates; items shown
-  in the last 7 days are skipped first. Before a test the pool is the
-  frontier sub-band, as before. Read Aloud draws from the same pool.
+  `θ`, the window widened by `0.3` until it holds ten candidates; inside the
+  window the priority pool's weights apply (missed words first, § *Which
+  item comes next*); items shown in the last 7 days are skipped first. Before
+  a test the pool is the frontier sub-band plus the priority families, as
+  before. Read Aloud draws from the same pool.
 - **Credit.** Both strings lower-cased, punctuation stripped, whitespace
   collapsed; `credit = 1 − d ÷ max(len(reference), len(typed))` with `d` the
   character-level Levenshtein distance — the DET's edit-distance similarity
@@ -178,9 +260,10 @@ member) and added with `source = <task>` and `note = <prompt id>`; a word
 outside the list is added under its own spelling and becomes an *extra* entry
 on the study list (issue #8).
 
-The start page shows today's attempts per task. Routine: one speaking and one
-writing drill a day; cloze and dictation three times a week, 10 items each —
-cloze from the frontier sub-band, dictation from the sentences near `θ`.
+The start page shows today's attempts per task and the size of the priority
+pool. Routine: one speaking and one writing drill a day; cloze and dictation
+three times a week, 10 items each — the words you missed first, then the
+frontier (cloze) or the sentences near `θ` (dictation).
 
 ## `attempts.csv`
 
@@ -203,7 +286,7 @@ One row per finished or timed-out attempt, every task type. Written by
 | `file` | draft or recording path relative to `practice/`; blank for cloze and dictation |
 | `theta` | the learner's `θ` *before* the attempt (dictation, since #16); blank before the first reliable test and on older rows |
 | `b` | the item's difficulty (`b_text + b_adjust`) at the time; blank on older rows |
-| `events` | `family:kind|family:kind` — one per content word of a dictation sentence (`hit`, `form`, `hearing`, `spelling`, `vocabulary`); blank on older rows |
+| `events` | `family:kind|family:kind` — one per content word of a dictation sentence (`hit`, `form`, `hearing`, `spelling`, `vocabulary`); the target family's `hit` or `vocabulary` for a sentence-mode cloze item (#17 adds every blank); blank on older rows |
 
 Rows written before #16 have no `theta`, `b` or `events`: they load with
 blanks, the header is upgraded on the next write, and only rows with a `b`

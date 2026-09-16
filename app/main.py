@@ -130,7 +130,7 @@ def config():
             "theta": st["theta"], "se": st["se"], "det_estimate": st["det_estimate"], "det_range": st["det_range"],
             "theta_test": st["theta_test"], "theta_listen": st["theta_listen"], "se_listen": st["se_listen"],
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None,
-            "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"])}
+            "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"]), "pool": learn.pool_counts(priority(st)[2])}
 
 
 @app.post("/api/session")
@@ -187,16 +187,18 @@ def learn_view(n: int) -> dict:
     dict GET /api/progress and scripts/report.py use) plus the history rows and the study list."""
     sessions, attempts = store.load_sessions(), store.load_attempts()
     levels = store.load_levels()
-    r = progress.build(sessions, levels, SUBBANDS, b_of=BANK.b, attempts=attempts, index=BANK.index)
+    rows = learn.load_my_words()
+    r = progress.build(sessions, levels, SUBBANDS, b_of=BANK.b, attempts=attempts, index=BANK.index, my_words=rows)
     stats = learn.word_stats(sessions, SUBBANDS, attempts, BANK.index)
     history, _ = learn.level_history(levels)
-    my_words = learn.open_my_words(learn.load_my_words())
-    counts = {**r["counts"], "my-words": len(my_words)}
+    my_words = learn.open_my_words(rows)
+    done = learn.done_counts(rows)
+    counts = {**r["counts"], "my-words": len(my_words), "done-cards": done["cards"], "done-practice": done["practice"]}
     return {"sessions": r["tests"], "history": history, "trend": r["trend"], "level": r["level"],
             "frontier": r["frontier"], "theta": r["theta"], "se": r["se"], "det_estimate": r["det_estimate"],
             "det_range": r["det_range"], "theta_test": r["theta_test"], "theta_listen": r["theta_listen"],
             "se_listen": r["se_listen"], "thetas": r["thetas"], "theta_series": r["theta_series"],
-            "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n,
+            "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n, "pool": r["pool"],
             "words": learn.study_list(stats, r["frontier"], BANK.index, SYNONYMS, my_words, n, BANK.examples)}
 
 
@@ -206,7 +208,7 @@ def progress_page():
     a malformed mocks.csv row is a 422 naming the line (#11), the same message the script prints."""
     try:
         return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b,
-                              attempts=store.load_attempts(), index=BANK.index)
+                              attempts=store.load_attempts(), index=BANK.index, my_words=learn.load_my_words())
     except ValueError as e:
         raise HTTPException(422, f"vocab/tests/mocks.csv: {e}")
 
@@ -374,11 +376,34 @@ def add_event_words(events: list[dict], task: str, note: str) -> list[dict]:
     return out
 
 
+def priority(st: dict) -> tuple[dict, list[dict], dict[str, tuple[str, int]]]:
+    """(word stats, open my-words rows, learn.priority_pool()) for the state of current_state() — what the
+    vocabulary drills draw by (issue #13)."""
+    stats = learn.word_stats(st["sessions"], SUBBANDS, st["attempts"], BANK.index)
+    my_words = learn.open_my_words(learn.load_my_words())
+    return stats, my_words, learn.priority_pool(stats, my_words, BANK.index, st["frontier"])
+
+
+def target_view(family: str, stats: dict, my_words: list[dict], pool: dict[str, tuple[str, int]]) -> dict:
+    """What the item screen and the result screen say about the target family: `family`, `forms` (to highlight
+    it in the sentence), `reason` (the pool tier, "" for a frontier or off-pool word) and its `reason_label`."""
+    reason = pool.get(family, ("", 0))[0]
+    return {"family": family, "forms": [family, *drills.members(BANK.index[family])] if family in BANK.index else [family],
+            "reason": reason if reason in learn.PRIORITY else "", "reason_label": learn.reason_label(family, reason, stats, my_words)}
+
+
+def weight_of(pool: dict[str, tuple[str, int]], fallback: int = 0):
+    """The pick_weighted() weight of a bank row or cloze candidate: its family's pool weight, `fallback` outside it."""
+    return lambda r: pool.get(r["family"], ("", fallback))[1]
+
+
 @app.get("/api/drill/{task}/next")
 def drill_next(task: str, mode: str = "sentence"):
-    """A fresh item for `task` and the attempt id to answer it with. Cloze and dictation draw from the frontier
-    sub-band (cloze also from the study list) and skip items shown in the last NO_REPEAT_DAYS days; prompts
-    rotate the same way. `mode=passage` = a hand-pasted passage (practice/read-and-complete/passages/)."""
+    """A fresh item for `task` and the attempt id to answer it with. The vocabulary drills draw by
+    learn.priority_pool() (#13: the words missed in the test or in practice first, the frontier last, through
+    drills.pick_weighted) — cloze from the sentence candidates of those families, dictation and Read Aloud from
+    the sentences near θ (#16) — and skip items shown in the last NO_REPEAT_DAYS days; prompts rotate the same
+    way. `mode=passage` = a hand-pasted passage (practice/read-and-complete/passages/)."""
     t = task_of(task)
     attempt = drills.attempt_id()
     recent = drills.recent_items(store.load_attempts(), task)
@@ -391,7 +416,7 @@ def drill_next(task: str, mode: str = "sentence"):
             raise HTTPException(404, f"no prompt for {task}: add one to {where}")
         return prompt_view(task, row, attempt)
     st = current_state()
-    sessions, front = st["sessions"], st["frontier"]
+    front = st["frontier"]
     if task == "read-and-complete" and mode == "passage":
         p = drills.pick(drills.load_passages(), recent, lambda p: p["slug"], rng)
         if p is None:
@@ -403,31 +428,31 @@ def drill_next(task: str, mode: str = "sentence"):
         return {"task": task, "attempt": attempt, "id": drills.passage_id(p["slug"], seed), "mode": "passage",
                 "subband": "", "source": p.get("source", ""), "pieces": item["pieces"], "blanks": item["blanks"],
                 "seconds": t["passage_seconds"], "b": textdiff.b_of(p) if p["b_text"] is not None else None}
+    stats, my_words, pool_map = priority(st)
     if task == "read-and-complete":
-        stats = learn.word_stats(sessions, SUBBANDS, st["attempts"], BANK.index)
-        my_words = learn.open_my_words(learn.load_my_words())
-        studying = {w["family"] for w in learn.study_list(stats, front, BANK.index, SYNONYMS, my_words, learn.BATCH, BANK.examples)}
-        pool = [c for c in cloze_pool() if c["subband"] == front or c["family"] in studying]
-        c = drills.pick(pool, recent, lambda c: c["key"], rng)
+        # sentence mode: the cloze candidates of the pool's families, weighted; the whole bank when none
+        candidates = [c for c in cloze_pool() if c["family"] in pool_map] or cloze_pool()
+        c = drills.pick_weighted(candidates, recent, lambda c: c["key"], weight_of(pool_map, 1), rng)
         if c is None:
             raise HTTPException(404, f"no example sentence for {front}")
         seed = rng.randrange(10_000)
         item = drills.cloze(c["example"], seed, c["pattern"])
         return {"task": task, "attempt": attempt, "id": drills.cloze_id(c["family"], c["sense"], seed), "mode": "sentence",
                 "subband": c["subband"], "pieces": item["pieces"], "blanks": item["blanks"], "seconds": t["seconds"],
-                "b": textdiff.b_of(c)}
+                "b": textdiff.b_of(c), **target_view(c["family"], stats, my_words, pool_map)}
     # listen-and-type and read-aloud: the dictation bank near θ (|b − θ| ≤ 0.6, widened until 10 candidates,
-    # issue #16); the frontier sub-band before the first reliable test
+    # issue #16), the frontier sub-band before the first reliable test; inside the window the pool weights
+    # (#13) — a sentence outside the pool counts as a frontier one, so the window stays wide
     bank = sentence_bank()
     if st["theta"] is not None:
         pool, width = drills.in_window(bank, st["theta"], textdiff.b_of)
     else:
-        pool, width = [r for r in bank if r["subband"] == front] or bank, None
-    row = drills.pick(pool, recent, lambda r: r["id"], rng)
+        pool, width = [r for r in bank if r["family"] in pool_map or r["subband"] == front] or bank, None
+    row = drills.pick_weighted(pool, recent, lambda r: r["id"], weight_of(pool_map, drills.FRONTIER_WEIGHT), rng)
     if row is None:
         raise HTTPException(404, "the sentence bank is empty")
     d = {"task": task, "attempt": attempt, "id": row["id"], "subband": row["subband"], "seconds": t["seconds"], "prep": 0,
-         "b": textdiff.b_of(row), "theta": st["theta"], "window": width}
+         "b": textdiff.b_of(row), "theta": st["theta"], "window": width, **target_view(row["family"], stats, my_words, pool_map)}
     if task == "read-aloud":
         return {**d, "sentence": row["sentence"], "min": 0}
     speech(row["sentence"], row["voice"])
@@ -523,8 +548,15 @@ def dictation_answer(item: str, a: DrillAnswer, row: dict) -> dict:
         drills.write_sentences(bank)
     return {"attempt": row["attempt"], "score": r["score"], "credit": r["score"], "word_score": r["word_score"],
             "words": r["words"], "reference": s["sentence"], "diff": r["diff"], "errors": r["errors"], "events": events,
-            "added": added, "plays": a.plays, "timed_out": a.timed_out, "b": b, "family": s["family"],
-            "theta": theta, "se": st["se"], "theta_after": after[0] if after else None, "se_after": after[1] if after else None}
+            "added": added, "plays": a.plays, "timed_out": a.timed_out, "b": b, **target_view(s["family"], {}, [], {}),
+            "theta": theta, "se": st["se"], "theta_after": after[0] if after else None, "se_after": after[1] if after else None,
+            "done": close_rows()}
+
+
+def close_rows() -> list[str]:
+    """After a drill answer: the open my-words rows whose family was hit on HIT_DAYS days are marked done
+    (learn.practice_done, #13) — the families closed, for the result screen."""
+    return learn.practice_done(learn.load_my_words(), store.load_attempts(), date.today())
 
 
 @app.post("/api/drill/{task}/{item}")
@@ -555,10 +587,17 @@ def drill_answer(task: str, item: str, a: DrillAnswer):
         score, wrong = drills.score_cloze(gen["answers"], typed)
         added = add_words([w for w, _ in wrong], task, ex, map_only=True)
         row.update(score=score, words=gen["blanks"], errors=drills.errors_column(wrong))
+        events = []
+        if sense is not None:                     # the target family's blank: a hit or a miss (#13; #17 adds every blank)
+            pat = drills.forms_pattern(family, drills.members(BANK.index[family]))
+            missed = any(pat.match(w) for w, _ in wrong)
+            events = [{"family": family, "kind": "vocabulary" if missed else "hit"}]
+            row["events"] = drills.events_column(events)
         store.append_attempt(row)
+        target = target_view(family, {}, [], {}) if sense is not None else {"family": "", "forms": [], "reason": "", "reason_label": ""}
         return {"attempt": attempt, "score": score, "blanks": gen["blanks"], "correct": gen["blanks"] - len(wrong),
                 "text": ex, "answers": gen["answers"], "wrong": [{"expected": w, "typed": g} for w, g in wrong],
-                "added": added, "timed_out": a.timed_out}
+                "added": added, "timed_out": a.timed_out, "done": close_rows(), **target}
     if task == "listen-and-type":
         return dictation_answer(item, a, row)
     # speaking and writing: the self-rating (mean of four lines, half up) and the "words I lacked" box
@@ -579,5 +618,5 @@ def drill_answer(task: str, item: str, a: DrillAnswer):
     row["self"] = rating if rating is not None else ""
     store.append_attempt(row)
     return {"attempt": attempt, "self": rating, "words": row["words"], "file": row["file"], "added": added,
-            "min": t["min"], "timed_out": a.timed_out,
+            "min": t["min"], "timed_out": a.timed_out, "done": close_rows(),
             "recording_url": f"/api/drill/{task}/{attempt}/recording" if row["file"].endswith(".webm") else None}

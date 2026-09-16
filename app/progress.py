@@ -191,16 +191,19 @@ def listening(attempts: list[dict], today: date, task: str = "listen-and-type", 
 
 def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None,
           mocks: Optional[list[dict]] = None, b_of: Optional[dict[str, float]] = None,
-          attempts: Optional[list[dict]] = None, index: Optional[dict[str, dict]] = None) -> dict:
+          attempts: Optional[list[dict]] = None, index: Optional[dict[str, dict]] = None,
+          my_words: Optional[list[dict]] = None) -> dict:
     """The report: `theta_test` from the last reliable session (learn.theta_history on `sessions`, word
     difficulties from `b_of` = Bank.b, else the middle of each block's sub-band), `theta`/`se` = that posterior
     updated by the scored drill attempts since it (`attempts` = practice/attempts.csv rows, #16) — level,
     frontier and the DET estimate come from it — `theta_listen`/`se_listen` from the dictation attempts only,
     the pooled sub-band rows, the word-status counts (drill events merged, `index` for their sub-band), the
-    listening line, the chart series and the mock tests (mocks_report() on `mocks`, the store.load_mocks() rows;
-    None = no rows). `anki` stays None; scripts/report.py fills it from anki_stats()."""
+    listening line, the chart series, the priority pool (`pool`: learn.pool_counts of learn.priority_pool on
+    `my_words` = every my-words row, plus `done` by cards / by practice; #13, needs `index`) and the mock tests
+    (mocks_report() on `mocks`, the store.load_mocks() rows; None = no rows). `anki` stays None;
+    scripts/report.py fills it from anki_stats()."""
     by = {sb.name: sb for sb in subbands}
-    attempts = attempts or []
+    attempts, my_words = attempts or [], my_words or []
     scores = learn.subband_scores(sessions, subbands)
     thetas = learn.theta_history(sessions, subbands, b_of)
     test = learn.current_theta(thetas)
@@ -211,6 +214,7 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
     history, trend = learn.level_history(levels)
     reliable = [h for h in history if h["reliable"]]
     sb = by.get(level) if level else None
+    stats = learn.word_stats(sessions, subbands, attempts, index)
     rows = [{"subband": s["subband"], "cefr": by[s["subband"]].cefr,
              "det": det_range(by[s["subband"]].det_low, by[s["subband"]].det_high), **s} for s in scores]
     today = today or date.today()
@@ -225,8 +229,10 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
             "det_estimate": irt.det_estimate(theta, subbands) if now else None,
             "det_range": list(irt.det_range(theta, se, subbands)) if now else None,
             "thetas": thetas, "theta_series": theta_series(thetas),
-            "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions, subbands, attempts, index)),
+            "subbands": rows, "counts": learn.status_counts(stats),
             "listening": listening(attempts, today),
+            "pool": {**learn.pool_counts(learn.priority_pool(stats, learn.open_my_words(my_words), index or {}, front)),
+                     "done": learn.done_counts(my_words)},
             "series": level_series(history, by), "anki": None,
             "mocks": mocks_report(mocks or [], history, today)}
 
@@ -250,6 +256,15 @@ def now_line(r: dict) -> str:
     if r["last_level"] != r["level"]:
         parts.append(f"last test {r['last_level'] or 'no level'}")
     return " · ".join(parts)
+
+
+def pool_line(r: dict) -> str:
+    """`Priority pool: 23 words (my-words 9 · repeat 4 · missed 7 · shaky 3) · frontier 480 · my-words done: 3 by
+    cards, 1 by practice` — the numbers the practice page shows (#13)."""
+    p = r["pool"]
+    tiers = " · ".join(f"{k} {p[k]}" for k in learn.PRIORITY)
+    return (f"Priority pool: {p['total']} word{'s' if p['total'] != 1 else ''} ({tiers}) · frontier {p['frontier']}"
+            f" · my-words done: {p['done']['cards']} by cards, {p['done']['practice']} by practice")
 
 
 def listening_line(r: dict) -> str:
@@ -349,8 +364,8 @@ def render_markdown(r: dict, subbands: list[Subband]) -> str:
                       f"{s['score']:.2f}" if s["score"] is not None else DASH,
                       s["status"] + (" ← frontier" if s["subband"] == r["frontier"] else "")] for s in r["subbands"]]))
     c = r["counts"]
-    md += ["", "### Words", "", " · ".join(f"{k} {c[k]}" for k in learn.STATUSES) + f" ({c['seen']} seen)",
-           "", "### Listening", "", listening_line(r),
+    md += ["", "### Words", "", " · ".join(f"{k} {c[k]}" for k in learn.STATUSES) + f" ({c['seen']} seen)", "",
+           pool_line(r), "", "### Listening", "", listening_line(r),
            "", "### Ability over time", ""]
     if r["thetas"]:
         md += theta_lines(r["thetas"]) + [""]

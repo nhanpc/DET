@@ -177,7 +177,7 @@ flowchart LR
 
 | Link | Exists? | How |
 |---|---|---|
-| word level → which sentence | yes | the target family is in the frontier sub-band — the sub-band containing `θ` (`learn.frontier()`, [det-adaptive.md](det-adaptive.md)) |
+| word level → which sentence | yes | the target family comes from the priority pool (#13): words missed in the test or in practice first, then the frontier sub-band — the sub-band containing `θ` (`learn.priority_pool()`, [practice/README.md](../practice/README.md) § *Which item comes next*) |
 | word level → sentence difficulty | dictation: yes | `b_text` per sentence and passage (above); Listen and Type and Read Aloud draw from `\|b − θ\| ≤ 0.6` (#16, [det-adaptive.md](det-adaptive.md) § *Dictation*); the cloze drills still draw by the band tag until #17 |
 | sentence errors → my-words | yes | a wrong word that maps to an `index.csv` family → `learn.add_my_word(source = task)`; a hearing / spelling / form slip under `source = task:kind`, shown as *heard wrong*, never a card |
 | sentence errors → word status or level | dictation: yes | `learn.word_stats()` merges the `events` of `attempts.csv` with the test sessions: a `vocabulary` miss is a "no"; the credit moves `θ` (#16) |

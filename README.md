@@ -214,8 +214,17 @@ Every DET task type as a timed drill in the same app (issue #10, Phase 5):
 rules per drill in [practice/README.md](practice/README.md), the real clock
 values in [docs/det-format.md](docs/det-format.md).
 
+- **Which words come up**: every vocabulary drill draws from one **priority
+  pool** (issue #13) — the words you missed in the level test (`repeat`,
+  `missed`, `shaky`) and in practice (open `vocab/my-words.csv` rows) first,
+  weighted 6 / 3 / 2 against 1 for a never-shown frontier word, with half
+  the draws reserved for them while any are left; the item screen says why
+  (`missed 2× in the test`, `my-words · listen-and-type 2026-09-14`), the
+  practice page shows the pool's size, and a my-words row is closed by
+  practice once its word was hit on two different days
+  ([practice/README.md](practice/README.md) § *Which item comes next*).
 - **Read and Complete** (`read-and-complete`): a C-test cut from a
-  `vocab/senses.csv` example of the frontier sub-band — every second eligible
+  `vocab/senses.csv` example of a pool family — every second eligible
   word loses its second half (`He ski____ a row in t__ text a__ so the
   sent____ was incompre________`), 2–5 blanks, 1 minute; *Passage mode*
   does the same to a hand-pasted 50–80-word passage from

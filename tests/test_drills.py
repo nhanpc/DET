@@ -240,7 +240,9 @@ def test_cloze_and_dictation_api(practice):
 
     # dictation: the bank is built on first use, the MP3 is cached, a long wrong answer scores 0
     d = c.get("/api/drill/listen-and-type/next").json()
-    assert d["plays_left"] == 3 and d["seconds"] == 60 and d["subband"] == "1k-a" and d["audio_url"] == f"/api/drill/listen-and-type/{d['id']}/audio"
+    assert d["plays_left"] == 3 and d["seconds"] == 60 and d["audio_url"] == f"/api/drill/listen-and-type/{d['id']}/audio"
+    mine = {m["family"] for m in learn.open_my_words(learn.load_my_words())}          # the cloze misses above are priority words (#13)
+    assert d["subband"] == "1k-a" or d["family"] in mine
     assert (practice / "sentences.csv").exists() and len(drills.load_sentences()) > 1000
     a = c.get(d["audio_url"])
     assert a.status_code == 200 and a.headers["content-type"] == "audio/mpeg" and a.content.startswith(b"ID3")

@@ -157,6 +157,7 @@
   .dresult .text .want { color: var(--green); font-weight: 500; }
   .dresult .text .kind { font: 500 10px var(--mono); color: var(--muted); vertical-align: super; margin-left: 1px; text-decoration: none; }
   .dresult .theta { font: 500 13px var(--mono); color: var(--text-2); }
+  .dresult .text mark { background: #fbf1dc; color: inherit; border-radius: 3px; padding: 0 2px; }
   .rating { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center; max-width: 480px; }
   .rating label { font-size: 14px; color: var(--text-2); }
   .rating .scale { display: flex; gap: 6px; }
@@ -194,7 +195,7 @@
     <div class="note" id="retest" hidden></div>
   </div>
   <div class="drills" id="drills">
-    <div class="eyebrow">Practise the tasks · <span id="d-today">nothing yet today</span></div>
+    <div class="eyebrow">Practise the tasks · <span id="d-today">nothing yet today</span> · <span id="d-pool"></span></div>
     <div class="group"><span class="eyebrow">Vocabulary</span><span id="d-vocab"></span></div>
     <div class="group"><span class="eyebrow">Speaking</span><span id="d-speak"></span></div>
     <div class="group"><span class="eyebrow">Writing</span><span id="d-write"></span></div>
@@ -305,7 +306,7 @@
 
 <section id="drill" hidden>
   <div class="bar">
-    <div class="left"><span class="eyebrow" id="d-task"></span><span class="mono" id="d-subband"></span></div>
+    <div class="left"><span class="eyebrow" id="d-task"></span><span class="mono" id="d-subband"></span><span class="tag" id="d-reason" hidden></span></div>
     <div class="phase" id="d-phase"></div>
     <div class="clock" id="d-clock">0:00</div>
   </div>
@@ -350,7 +351,7 @@
       $('retest').innerHTML = `Re-test <b>${retest.subband}</b> ${when} (${retest.days > 0 ? retest.due : 'last reliable test ' + retest.last}) — starts from your last θ`;
       $('btn-retest').textContent = `Re-test ${retest.subband}`;
     }
-    renderDrills(c.tasks, c.today, c.frontier);
+    renderDrills(c.tasks, c.today, c.frontier, c.pool);
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
@@ -448,7 +449,8 @@
     $('l-theta').textContent = d.theta == null ? 'No reliable test yet' : `θ ${d.theta.toFixed(2)} ± ${d.se.toFixed(2)} · DET ≈ ${d.det_estimate} (${d.det_range[0]}–${d.det_range[1]})`
       + (d.theta != null && d.theta_listen !== d.theta ? ` · θ_listen ${d.theta_listen.toFixed(2)} ± ${d.se_listen.toFixed(2)}` : '');
     $('l-counts').innerHTML = ['repeat', 'my-words', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
-      .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`;
+      .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`
+      + (d.counts['done-cards'] || d.counts['done-practice'] ? `<span class="tag">my-words done: ${d.counts['done-cards']} by cards · ${d.counts['done-practice']} by practice</span>` : '');
     $('l-history').innerHTML = d.thetas.map(h =>
       `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">θ ${h.theta.toFixed(2)}</span><small>${h.started.slice(0, 16).replace('T', ' ')} · ${h.frontier}${h.level ? ', level ' + h.level : ', no level'} · DET ≈ ${h.det}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
       || '<span class="note">No finished tests yet.</span>';
@@ -506,9 +508,12 @@
     'write-photo': 'Write About the Photo', 'read-then-write': 'Read Then Write', 'interactive-writing': 'Interactive Writing' };
   const SPEAKING = ['read-aloud', 'speak-photo', 'read-then-speak', 'listen-then-speak'], WRITING = ['write-photo', 'read-then-write', 'interactive-writing'];
   const D = { task: null, mode: 'sentence', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
-  function renderDrills(tasks, today, frontier) {
+  // The practice-page header (issue #13): the priority pool — the words missed in the test or in practice, drawn first.
+  const poolLine = (p) => `priority pool: ${p.total} word${p.total === 1 ? '' : 's'} (my-words ${p['my-words']} · repeat ${p.repeat} · missed ${p.missed} · shaky ${p.shaky})`;
+  function renderDrills(tasks, today, frontier, pool) {
     const btn = (t) => `<button class="drill-btn" data-task="${t}">${TASK_NAMES[t]}<small class="${today[t] ? 'done' : ''}">${today[t] || 0} today</small></button>`;
-    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('listen-and-type') + ` <span class="note">from ${frontier}</span>`;
+    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('listen-and-type') + ` <span class="note">missed words first, then ${frontier}</span>`;
+    $('d-pool').textContent = poolLine(pool);
     $('d-speak').innerHTML = SPEAKING.map(btn).join(' ');
     $('d-write').innerHTML = WRITING.map(btn).join(' ');
     const n = Object.values(today).reduce((a, b) => a + b, 0);
@@ -533,6 +538,13 @@
   const stage = (html) => { $('d-stage').innerHTML = html; $('d-stage').hidden = false; $('d-result').hidden = true; };
   const resultBox = (html) => { $('d-result').innerHTML = html; $('d-result').hidden = false; $('d-stage').hidden = true; $('d-clock').classList.remove('low'); $('d-phase').textContent = 'Result'; $('d-clock').textContent = fmt(Math.round(D.ms / 1000)); };
   const backButtons = () => `<div class="actions"><button class="primary" id="d-next">Next item</button><button class="secondary" id="d-back">Back to start</button></div>`;
+  // The target family highlighted in a result text (#13): every form of the family, whole words, case-insensitive.
+  const markTarget = (html, forms) => {
+    if (!forms || !forms.length) return html;
+    const re = new RegExp(`(^|[^A-Za-z])(${forms.map(f => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![A-Za-z])`, 'gi');
+    return html.replace(re, (m, pre, w) => `${pre}<mark>${w}</mark>`);
+  };
+  const doneLine = (done) => done && done.length ? `<div class="note">Done by practice (hit on two days): ${done.map(esc).join(', ')} — off the my-words list.</div>` : '';
   const addedLine = (added) => added.length
     ? `<div class="note">To my-words: ${added.map(a => `<b>${esc(a.family)}</b>${a.kind && a.kind !== 'vocabulary' ? ' (' + a.kind + ')' : ''}${a.in_index ? '' : ' (extra)'}${a.added ? '' : ' (already open)'}`).join(', ')}</div>`
     : '';
@@ -549,6 +561,9 @@
     catch (e) { resultBox(`<div class="det">${esc(e.message)}</div><div class="actions"><button class="secondary" id="d-back">Back to start</button></div>`); wireResult(); return; }
     D.item = it;
     $('d-subband').textContent = it.subband || '';
+    // the reason chip (#13): why this item — missed in the test, my-words with its source, shaky; nothing for a frontier word
+    const chip = $('d-reason');
+    chip.hidden = !it.reason_label; chip.textContent = it.reason_label || ''; chip.className = `tag ${it.reason || ''}`;
     D.startedAt = Date.now();
     if (task === 'read-and-complete') renderCloze(it);
     else if (task === 'listen-and-type') renderDictation(it);
@@ -583,7 +598,8 @@
       return got.toLowerCase() === want.toLowerCase() ? `<span class="ok">${esc(want)}</span>` : `<span class="bad">${esc(got || '·')}</span> <span class="want">${esc(want)}</span>`;
     })()).join('');
     resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.correct} of ${r.blanks} blanks${timedOut ? ' · time ran out' : ''} · ${fmt(Math.round(D.ms / 1000))}</span></div>` +
-      `<div class="text">${text}</div>` + addedLine(r.added) + backButtons());
+      `<div class="text">${markTarget(text, r.forms)}</div>` + (r.family ? `<div class="note">Target: <b>${esc(r.family)}</b>${D.item.reason_label ? ' · ' + esc(D.item.reason_label) : ''}</div>` : '') +
+      addedLine(r.added) + doneLine(r.done) + backButtons());
     wireResult(() => openDrill('read-and-complete', D.mode));
   }
 
@@ -622,8 +638,8 @@
       : `θ ${r.theta.toFixed(2)} → ${r.theta_after.toFixed(2)} ± ${r.se_after.toFixed(2)} · sentence b ${r.b.toFixed(2)}`;
     resultBox(`<div class="big"><b>${Math.round(r.credit * 100)}%</b><span>credit · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}×${timedOut ? ' · time ran out' : ''}</span></div>` +
       `<div class="theta">${theta}</div>` +
-      `<div class="text">${diff}</div><div class="note">Reference: <em>${esc(r.reference)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it, tagged with what went wrong: hearing, spelling, form, vocabulary), <span class="mono">grey</span> extra</div>` +
-      `<audio controls src="${D.item.audio_url}"></audio>` + addedLine(r.added) + backButtons());
+      `<div class="text">${markTarget(diff, r.forms)}</div><div class="note">Reference: <em>${markTarget(esc(r.reference), r.forms)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it, tagged with what went wrong: hearing, spelling, form, vocabulary), <span class="mono">grey</span> extra; the target family is marked${D.item.reason_label ? ' (' + esc(D.item.reason_label) + ')' : ''}</div>` +
+      `<audio controls src="${D.item.audio_url}"></audio>` + addedLine(r.added) + doneLine(r.done) + backButtons());
     wireResult(() => openDrill('listen-and-type'));
   }
 

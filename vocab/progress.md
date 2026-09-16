@@ -96,6 +96,8 @@ Level 4k-a (B2) · DET ≈ 97 (95–100) · θ 8.13 ± 0.34 · frontier 5k-a · 
 
 repeat 0 · missed 20 · learned 0 · shaky 15 · known 73 (108 seen)
 
+Priority pool: 35 words (my-words 0 · repeat 0 · missed 20 · shaky 15) · frontier 499 · my-words done: 0 by cards, 0 by practice
+
 ### Listening
 
 _No dictation yet — the Listen and Type drill feeds this line._
