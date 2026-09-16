@@ -37,6 +37,7 @@ MY_WORDS_HEADER = ["date", "family", "source", "note", "done"]
 NOTE_TYPE = "DET family"
 FIELDS = ["Word", "Forms", "Definition", "Example", "Gap", "Hint", "Synonyms"]   # note type fields, in order
 BLANK = "_____"
+STATUSES = ("repeat", "missed", "learned", "shaky", "known")   # WordStat.status values, study order
 
 
 @dataclass
@@ -88,7 +89,9 @@ def word_stats(sessions: list[dict]) -> dict[str, WordStat]:
 
 
 def subband_scores(sessions: list[dict], subbands: list[Subband]) -> list[dict]:
-    """Pooled score per sub-band over all reliable sessions, newer sessions weighing more."""
+    """Pooled score per sub-band over all reliable sessions, newer sessions weighing more.
+    `known` = weighted hits/real (the "% known"); `score` = known − weighted false alarms/pseudo, the number
+    the mastery line applies to. Both come from the same aggregation."""
     done = [s for s in _sorted(sessions) if s["result"]["reliable"]]
     agg: dict[str, list[float]] = {}
     for k, s in enumerate(done):
@@ -104,13 +107,23 @@ def subband_scores(sessions: list[dict], subbands: list[Subband]) -> list[dict]:
     out = []
     for sb in subbands:
         if sb.name not in agg:
-            out.append({"subband": sb.name, "blocks": 0, "score": None, "status": "untested"})
+            out.append({"subband": sb.name, "blocks": 0, "known": None, "score": None, "status": "untested"})
             continue
         h, nr, fa, npd, n = agg[sb.name]
         score = round(h / nr - fa / npd, 4)
-        out.append({"subband": sb.name, "blocks": n, "score": score,
+        out.append({"subband": sb.name, "blocks": n, "known": round(h / nr, 4), "score": score,
                     "status": "mastered" if score >= sb.mastery else "not yet"})
     return out
+
+
+def status_counts(stats: dict[str, WordStat]) -> dict[str, int]:
+    """How many words carry each status, plus `seen` = every word shown so far (the Learn page and the
+    progress report show the same numbers)."""
+    counts = {k: 0 for k in STATUSES}
+    for w in stats.values():
+        counts[w.status] += 1
+    counts["seen"] = len(stats)
+    return counts
 
 
 def frontier(scores: list[dict]) -> tuple[Optional[str], str]:

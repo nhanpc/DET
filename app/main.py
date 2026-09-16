@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import learn, store
+from . import learn, progress, store
 from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, Session
 from .bank import Bank, load_subbands
 
@@ -131,17 +131,24 @@ def result(sid: str):
 
 
 def learn_view(n: int) -> dict:
-    sessions, scores, level, front = current_frontier()
+    """The Learn page: the progress report (level, frontier, pooled sub-bands, counts, chart series — the same
+    dict GET /api/progress and scripts/report.py use) plus the history rows and the study list."""
+    sessions = store.load_sessions()
+    levels = store.load_levels()
+    r = progress.build(sessions, levels, SUBBANDS)
     stats = learn.word_stats(sessions)
-    history, trend = learn.level_history(store.load_levels())
+    history, _ = learn.level_history(levels)
     my_words = learn.open_my_words(learn.load_my_words())
-    counts = {k: 0 for k in ("repeat", "missed", "learned", "shaky", "known")}
-    for w in stats.values():
-        counts[w.status] += 1
-    counts["my-words"] = len(my_words)
-    return {"sessions": len(history), "history": history, "trend": trend, "level": level, "frontier": front,
-            "subbands": scores, "counts": counts, "batch": n,
-            "words": learn.study_list(stats, front, BANK.index, SYNONYMS, my_words, n, BANK.examples)}
+    counts = {**r["counts"], "my-words": len(my_words)}
+    return {"sessions": r["tests"], "history": history, "trend": r["trend"], "level": r["level"],
+            "frontier": r["frontier"], "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n,
+            "words": learn.study_list(stats, r["frontier"], BANK.index, SYNONYMS, my_words, n, BANK.examples)}
+
+
+@app.get("/api/progress")
+def progress_page():
+    """The report dict scripts/report.py renders into vocab/progress.md (no Anki)."""
+    return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS)
 
 
 @app.get("/api/learn")

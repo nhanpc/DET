@@ -100,3 +100,7 @@ def load_sessions() -> list[dict]:
 
 def load_levels() -> list[dict]:
     return _read(LEVELS)
+
+
+def load_results() -> list[dict]:
+    return _read(RESULTS)

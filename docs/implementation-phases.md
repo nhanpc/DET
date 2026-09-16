@@ -137,18 +137,29 @@ Output: Anki decks, a daily routine and the re-test reminder.
 
 ## Phase 4 — Progress tracking
 
-Goal: see the level move smoothly over time.
+Goal: see the level move smoothly over time. Specified in issue #9.
 
-1. `scripts/report.py` — reads `vocab/tests/results.csv` and Anki stats
-   (optional) and rewrites `vocab/progress.md`: table of % known per
-   sub-band, estimated level, and a Mermaid line of scores over time. It
-   replaces only the text between the `<!-- generated:start -->` and
-   `<!-- generated:end -->` markers (each alone on its line, exactly once)
-   and never touches the hand-written baseline above them; the full rule
-   table is in issue #7 § 6, implemented by #9.
-2. Map highest mastered sub-band → estimated DET range (table in README).
+Status: done (#9). README § *Track progress* is the user-facing summary.
 
-Output: `progress.md` updated weekly.
+1. `scripts/report.py` — reads `vocab/tests/` (`sessions/*.json`,
+   `levels.csv`) and Anki review stats (optional, `--anki` on a copy of
+   `collection.anki2`) and rewrites `vocab/progress.md`: the *Now* line
+   (pooled level, DET range, frontier, trend), a table of % known and pooled
+   score per sub-band, the word-status counts and a Mermaid line of the
+   level over test dates. It replaces only the text between the
+   `<!-- generated:start -->` and `<!-- generated:end -->` markers (each
+   alone on its line, exactly once) and never touches the hand-written
+   baseline above them; the full rule table is in issue #7 § 6, implemented
+   by `app/progress.py:splice()`. `--check` cross-checks `levels.csv` and
+   `results.csv` against the session JSON.
+2. Map highest mastered sub-band → estimated DET range (table in README):
+   done in Phase 2 (#4, #5) — `vocab/subbands.csv` carries the range, the
+   result page and `levels.csv` show it.
+3. `GET /api/progress` returns the same report dict; the *What to learn*
+   page draws the level chart once two test days are on file. Mock-test rows
+   (`vocab/tests/mocks.csv`) are added to the block by Phase 6 (#11).
+
+Output: `progress.md` updated after every test.
 
 ## Phase 5 — DET task drills
 

@@ -118,6 +118,10 @@
   .words .m { font-size: 13px; color: var(--muted); } .words .m i { font-style: normal; color: var(--text-2); }
   .words .empty { display: block; color: var(--muted); font-size: 14px; }
   .history { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chart { display: block; width: 100%; max-width: 560px; height: 120px; margin-top: 10px; overflow: visible; }
+  .chart line { stroke: var(--border); stroke-width: 1; } .chart .goal { stroke: var(--green); stroke-dasharray: 3 3; }
+  .chart polyline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+  .chart circle { fill: var(--accent); } .chart text { font: 500 10px var(--mono); fill: var(--muted); }
 </style>
 </head>
 <body>
@@ -216,7 +220,8 @@
       <div class="note">From every word you were shown, all tests together</div>
     </div>
   </div>
-  <div class="section"><div class="eyebrow">Level over time</div><div class="history" id="l-history"></div></div>
+  <div class="section"><div class="eyebrow">Level over time</div><div class="history" id="l-history"></div>
+    <svg class="chart" id="l-chart" viewBox="0 0 560 120" preserveAspectRatio="none" hidden></svg></div>
   <div class="cols">
     <div class="section">
       <div class="eyebrow">Sub-bands</div>
@@ -251,7 +256,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const screens = ['start', 'test', 'between', 'result', 'learn'];
-  let screen = 'start', sid = null, block = null, resume = null, retest = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
+  let screen = 'start', sid = null, block = null, resume = null, retest = null, maxBlocks = 6, subbands = [], startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
 
   const api = async (path, opts) => {
     const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
@@ -268,6 +273,7 @@
   async function init() {
     const c = await api('/api/config');
     maxBlocks = c.max_blocks;
+    subbands = c.subbands;
     $('max-blocks').textContent = maxBlocks;
     if (c.last) {
       $('last').textContent = `Last result: ${c.last.level || 'below 1k-b'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)');
@@ -378,6 +384,7 @@
     $('l-history').innerHTML = d.history.map(h =>
       `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${h.level || '—'}</span><small>${h.date} · DET ${detRange(h.det_low, h.det_high)}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
       || '<span class="note">No finished tests yet.</span>';
+    levelChart(d.series);
     $('l-subbands').innerHTML = d.subbands.filter(s => s.blocks).map(s =>
       `<tr><td class="mono">${s.subband}${s.subband === d.frontier ? ' ←' : ''}</td><td>${s.blocks}</td><td>${s.score.toFixed(2)}</td><td class="${s.status === 'mastered' ? 'ok' : 'bad'}">${s.status}</td></tr>`).join('');
     $('l-words').innerHTML = d.words.length ? d.words.map((w, i) =>
@@ -388,6 +395,22 @@
       : '<span class="empty">Nothing to learn yet — take a test first.</span>';
     $('l-exported').textContent = '';
     show('learn');
+  }
+  // One point per day (the day's last reliable test with a level), y = sub-band index; the dashed line is 6k-a = C1.
+  function levelChart(series) {
+    const svg = $('l-chart');
+    svg.hidden = series.length < 2;
+    if (svg.hidden) return;
+    const n = subbands.length, goal = subbands.findIndex(b => b.det_low >= 120) + 1;
+    const W = 560, H = 120, L = 34, R = 10, T = 8, B = 20;
+    const x = (i) => L + i * (W - L - R) / (series.length - 1), y = (o) => T + (n - o) * (H - T - B) / (n - 1);
+    const label = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    svg.innerHTML = [1, goal, n].filter(o => o > 0).map(o =>
+        `<line x1="${L}" x2="${W - R}" y1="${y(o)}" y2="${y(o)}"${o === goal ? ' class="goal"' : ''}/>` +
+        `<text x="${L - 6}" y="${y(o) + 3}" text-anchor="end">${subbands[o - 1].name}</text>`).join('') +
+      `<polyline points="${series.map((p, i) => `${x(i)},${y(p.order)}`).join(' ')}"/>` +
+      series.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.order)}" r="3"><title>${p.date} · ${p.level}</title></circle>` +
+        `<text x="${x(i)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${label(p.date)}</text>`).join('');
   }
   async function exportDeck() {
     const d = await api(`/api/learn/export?n=${$('l-batch').value}`, { method: 'POST' });

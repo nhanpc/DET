@@ -157,6 +157,37 @@ reads the whole history and turns it into a study list (issue #6):
 Nothing is stored beyond the history and `my-words.csv`: the statuses are
 recomputed from `vocab/tests/` every time.
 
+## Track progress
+
+One command turns the history in `vocab/tests/` into the generated half of
+[vocab/progress.md](vocab/progress.md) (issue #9); run it after each test
+and commit, so the level history is readable on GitHub without the app:
+
+```bash
+.venv/bin/python scripts/report.py            # rewrites vocab/progress.md, prints the Now line
+.venv/bin/python scripts/report.py --print    # the generated Markdown on stdout, nothing written
+.venv/bin/python scripts/report.py --anki ~/collection-copy.anki2   # + Anki review stats per sub-band
+.venv/bin/python scripts/report.py --check    # exit 1 if levels.csv / results.csv disagree with the session JSON
+```
+
+The generated block holds: the **Now** line (pooled level, CEFR and DET
+range, frontier, trend, number of tests, and the last test's level when it
+differs from the pooled one); a table with one row per sub-band — CEFR, DET
+range, blocks, *% known* (recency-weighted hits/real), the pooled *score*
+(known − false alarms, the number the 0.85 rule applies to) and status; the
+word-status counts; and a Mermaid line chart of the level over test dates
+(y = sub-band index, one point per day = that day's last reliable test with a
+level). `--anki` adds a table of cards, mature cards, reviews in the last 7
+days and lapses per sub-band from a *copy* of Anki's `collection.anki2`
+(Anki locks the original while open; tags come from the exported decks).
+
+Only the text between `<!-- generated:start -->` and `<!-- generated:end -->`
+changes; everything above the markers (target date, outside vocabulary
+estimates, the baseline rows) is hand-written and never touched. The same
+numbers come back from `GET /api/progress`, and the *What to learn* page
+draws the level chart once there are two or more points. Mock DET scores
+(`vocab/tests/mocks.csv`) are rendered by Phase 6 (issue #11).
+
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
 mirror that sub-band's headwords: `vocab/pseudowords.csv`.
@@ -190,12 +221,12 @@ DET/
 │   ├── overrides.csv            # hand-simplified definition / example per family; never written by a script
 │   ├── decks/                   # Anki exports (Learn page, scripts/export_anki.py): one note, two cards per family
 │   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json; mocks.csv (hand-typed)
-│   └── progress.md              # baseline (hand-written) / generated report
+│   └── progress.md              # hand-written baseline above the markers; scripts/report.py rewrites the block between them
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
 ├── practice/                    # per-task drills (speaking, writing, dictation)
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the
