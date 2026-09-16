@@ -1,4 +1,6 @@
-"""Item bank: real words from vocab/index.csv, invented words from vocab/pseudowords.csv."""
+"""Item bank: real words from vocab/index.csv, invented words from vocab/pseudowords.csv.
+vocab/overrides.csv (hand-written definition / example, issue #8) is applied on top of the index rows;
+vocab/senses.csv gives up to 3 examples per family for the recall cards."""
 from __future__ import annotations
 
 import csv
@@ -44,10 +46,22 @@ def load_subbands(path: Path = VOCAB / "subbands.csv") -> list[Subband]:
 class Bank:
     """Draws words for one sub-band, never repeating a word inside a session."""
 
-    def __init__(self, index_path: Path = VOCAB / "index.csv", pseudo_path: Path = VOCAB / "pseudowords.csv"):
+    def __init__(self, index_path: Path = VOCAB / "index.csv", pseudo_path: Path = VOCAB / "pseudowords.csv",
+                 senses_path: Path = VOCAB / "senses.csv", overrides_path: Path = VOCAB / "overrides.csv"):
+        overrides = {r["family"]: r for r in read_csv(overrides_path)} if overrides_path.exists() else {}
+        # examples per family: the override first (when it has one), then the senses in order, blanks dropped
+        self.examples: dict[str, list[str]] = {f: [o["example"]] for f, o in overrides.items() if o["example"]}
+        if senses_path.exists():
+            for r in read_csv(senses_path):
+                if r["example"]:
+                    self.examples.setdefault(r["family"], []).append(r["example"])
         self.real: dict[str, list[RealWord]] = {}
         self.index: dict[str, dict] = {}
         for r in read_csv(index_path):
+            o = overrides.get(r["family"])
+            if o:
+                r["definition"] = o["definition"] or r["definition"]
+                r["example"] = o["example"] or r["example"]
             self.index[r["family"]] = r
             if WORD.match(r["family"]):
                 self.real.setdefault(r["subband"], []).append(RealWord(r["family"], r["subband"], r["definition"]))

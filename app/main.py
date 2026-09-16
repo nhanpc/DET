@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +29,12 @@ SESSIONS: dict[str, Session] = {d["id"]: Session.restore(d, SUBBANDS, BANK)
 class Answer(BaseModel):
     yes: bool
     ms: Optional[int] = None
+
+
+class MyWord(BaseModel):
+    family: str
+    source: str = "learn"          # test (pinned on the result page), learn (the Add-a-word box) or a drill's task id
+    note: str = ""
 
 
 def get(sid: str) -> Session:
@@ -58,20 +64,34 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+def current_frontier() -> tuple[list[dict], list[dict], Optional[str], str]:
+    """(sessions, pooled scores, level, frontier) from the history on disk — the start page and the Learn
+    page need the same frontier, and the sessions are loaded once per request."""
+    sessions = store.load_sessions()
+    scores = learn.subband_scores(sessions, SUBBANDS)
+    level, front = learn.frontier(scores)
+    return sessions, scores, level, front
+
+
 @app.get("/api/config")
 def config():
     last = store.load_levels()
     open_ = [s for s in SESSIONS.values() if not s.finished]
     resume = max(open_, key=lambda s: s.started) if open_ else None
+    _, _, _, front = current_frontier()
     return {"real_per_block": REAL_PER_BLOCK, "pseudo_per_block": PSEUDO_PER_BLOCK, "max_blocks": MAX_BLOCKS,
             "subbands": [asdict(b) for b in SUBBANDS], "last": last[-1] if last else None,
+            "retest": learn.retest_due(last, front),
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None}
 
 
 @app.post("/api/session")
-def start():
+def start(start: Optional[str] = None):
+    """`start` = sub-band of block 1 (the Re-test button passes the frontier); default: the middle of the scale."""
+    if start is not None and start not in {b.name for b in SUBBANDS}:
+        raise HTTPException(400, f"unknown sub-band {start!r}")
     sid = datetime.now().strftime("%Y-%m-%d_%H%M%S") + "_" + uuid.uuid4().hex[:4]
-    s = Session.create(sid, SUBBANDS, BANK)
+    s = Session.create(sid, SUBBANDS, BANK, start_band=start)
     SESSIONS[sid] = s
     return {"session": sid, "block": block_view(s), "max_blocks": MAX_BLOCKS}
 
@@ -111,17 +131,17 @@ def result(sid: str):
 
 
 def learn_view(n: int) -> dict:
-    sessions = store.load_sessions()
-    scores = learn.subband_scores(sessions, SUBBANDS)
-    level, front = learn.frontier(scores)
+    sessions, scores, level, front = current_frontier()
     stats = learn.word_stats(sessions)
     history, trend = learn.level_history(store.load_levels())
+    my_words = learn.open_my_words(learn.load_my_words())
     counts = {k: 0 for k in ("repeat", "missed", "learned", "shaky", "known")}
     for w in stats.values():
         counts[w.status] += 1
+    counts["my-words"] = len(my_words)
     return {"sessions": len(history), "history": history, "trend": trend, "level": level, "frontier": front,
             "subbands": scores, "counts": counts, "batch": n,
-            "words": learn.study_list(stats, front, BANK.index, SYNONYMS, n)}
+            "words": learn.study_list(stats, front, BANK.index, SYNONYMS, my_words, n, BANK.examples)}
 
 
 @app.get("/api/learn")
@@ -132,6 +152,26 @@ def learn_page(n: int = learn.BATCH):
 @app.post("/api/learn/export")
 def learn_export(n: int = learn.BATCH):
     words = learn_view(max(1, min(n, 100)))["words"]
-    path = learn.export_anki(words)
+    today = date.today()
+    path = learn.export_anki(today.isoformat(), words)
+    done = learn.mark_done([w["family"] for w in words if w["reason"] == "my-words"], today)
     root = store.VOCAB.parent
-    return {"file": str(path.relative_to(root)) if path.is_relative_to(root) else str(path), "cards": len(words)}
+    return {"file": str(path.relative_to(root)) if path.is_relative_to(root) else str(path), "cards": len(words),
+            "my_words_done": done}
+
+
+@app.get("/api/my-words")
+def my_words():
+    rows = learn.load_my_words()
+    return {"open": sum(1 for r in rows if not r["done"]), "words": rows[::-1]}
+
+
+@app.post("/api/my-words")
+def add_my_word(w: MyWord):
+    """Pin a word met in practice. 409 when the family already has an open entry."""
+    family = w.family.strip().lower()
+    if not family:
+        raise HTTPException(422, "family is empty")
+    if not learn.add_my_word(family, w.source, w.note):
+        raise HTTPException(409, f"{family} is already on the list")
+    return {"family": family, "source": w.source, "note": w.note, "in_index": family in BANK.index}

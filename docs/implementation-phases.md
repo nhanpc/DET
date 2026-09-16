@@ -69,7 +69,11 @@ Steps:
    `subband`.
 3. `scripts/audit_data.py` writes `data/AUDIT.md` (coverage, difficulty
    gradient, mirror check).
-4. `vocab/my-words.csv` — same columns, empty, for words met in practice.
+4. `vocab/my-words.csv` — words met in practice, a slim schema joined to
+   `index.csv` on `family` (re-cut in Phase 3, issue #8): `date, family,
+   source, note, done`. `source` = `test` (pinned on the result page),
+   `learn` (the *Add a word* box) or a Phase 5 task id; `note` = meaning or
+   the sentence it was met in; `done` = the date it went into a deck.
 
 Output: `vocab/index.csv`, 6,000 rows, plus `senses.csv` and
 `relations.csv`. Status: done (issues #1, #2, #3).
@@ -98,23 +102,38 @@ Output: a level estimate in ~5 minutes, repeatable weekly. Status: done (issue #
 
 ## Phase 3 — Learning loop & decks
 
-Goal: learn the current sub-band as word families.
+Goal: learn the current sub-band as word families, and close the loop
+`test → learn → re-test after 1 week` inside the app.
 
-Status: the study list is in the app (issue #6, `app/learn.py`): it reads
-`vocab/tests/`, finds the frontier sub-band, orders repeat misses → frontier
-misses → other misses → slow answers → the rest of the frontier by rank, and
-exports the batch to `vocab/decks/<date>.txt` for Anki. Steps 1–4 below are
-the manual routine around it.
+Status: done (issues #6 and #8). The study list (`app/learn.py`) reads
+`vocab/tests/`, finds the frontier sub-band and orders repeat misses →
+my-words → frontier misses → other misses → slow answers → the rest of the
+frontier by rank; every deck goes through the same `card_entry()` /
+`export_anki()` pair, so the Learn button and the CLI can never produce
+different cards. README § *What to learn* is the user-facing summary.
 
-1. `definition` and `example` already come from `build_dict.py`; optionally
-   simplify them by hand for the current sub-band (short, simple English).
-2. `scripts/export_anki.py <subband>` → `vocab/decks/<subband>.txt`, one card
-   per family: front = base word, back = family forms + definition + example.
+1. `definition` and `example` come from `build_dict.py`; hand-simplified
+   ones for the current sub-band go in `vocab/overrides.csv` (`family,
+   definition, example`), applied when the app loads and never rewritten by
+   a script. `scripts/export_anki.py <subband> --check` lists the families
+   that still have no example containing the word.
+2. `scripts/export_anki.py <subband>` → `vocab/decks/<subband>.txt`: one note
+   per family for the `DET family` note type ([docs/anki.md](anki.md)), two
+   cards — *Recognise* (word → forms, definition, example, synonyms) and
+   *Recall* (definition + the example with the word gapped, or a hint, and a
+   typing box). `--batch N` = the Learn button, `--my-words` = the practice
+   words. Re-importing a regenerated file updates the notes.
 3. Daily: 15–20 new families + Anki review. One sub-band ≈ 500 families ≈
    4 weeks at 20/day.
-4. Words from practice go to `my-words.csv` and into a separate deck.
+4. Words from practice go to `vocab/my-words.csv` (`learn.add_my_word()`:
+   *Pin* on the result page, *Add a word* on the Learn page, Phase 5 drills)
+   and show up on the study list right after the repeat misses; the Learn
+   button or `--my-words` exports them and marks them `done`.
+5. Re-test: the start page shows *Re-test `<frontier>` due in N days* (7 days
+   after the last reliable test) and a button that starts the staircase in
+   the frontier sub-band.
 
-Output: Anki decks and a daily routine.
+Output: Anki decks, a daily routine and the re-test reminder.
 
 ## Phase 4 — Progress tracking
 

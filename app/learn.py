@@ -7,25 +7,36 @@ Word status, from every time the word was shown:
   learned  missed before, right the last time  → skipped unless missed again
   shaky    right, but slower than SLOW × that session's median answer time
   known    right and quick
-Study order: repeat → missed in the frontier sub-band → other misses (newest first) → shaky
-→ the rest of the frontier sub-band by rank.
+Study order: repeat → my-words (open rows of vocab/my-words.csv, issue #8) → missed in the frontier
+sub-band → other misses (newest first) → shaky → the rest of the frontier sub-band by rank.
+
+Every deck (the Learn-page batch, a whole sub-band, the my-words deck) goes through card_entry() and
+export_anki(): one note per family for the "DET family" note type (docs/anki.md), two cards — recognise
+(word → meaning) and recall (definition + gapped example → type the word).
 """
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from statistics import median
-from typing import Optional
+from typing import Iterable, Optional
 
 from .bank import VOCAB, WORD, Subband
 
 BATCH = 20
 SLOW = 2.0            # a correct answer this many times slower than the session median → shaky
 RECENCY = 0.5         # weight of a session relative to the next more recent one
+RETEST_DAYS = 7       # re-test the frontier this long after the last reliable test
 DECKS = VOCAB / "decks"
 RELATIONS = VOCAB / "relations.csv"
+MY_WORDS = VOCAB / "my-words.csv"
+MY_WORDS_HEADER = ["date", "family", "source", "note", "done"]
+NOTE_TYPE = "DET family"
+FIELDS = ["Word", "Forms", "Definition", "Example", "Gap", "Hint", "Synonyms"]   # note type fields, in order
+BLANK = "_____"
 
 
 @dataclass
@@ -126,33 +137,140 @@ def load_synonyms(path: Path = RELATIONS) -> dict[str, list[str]]:
     return syn
 
 
-def study_list(stats: dict[str, WordStat], front: str, index: dict[str, dict],
-               synonyms: dict[str, list[str]], n: int = BATCH) -> list[dict]:
-    def entry(word: str, reason: str) -> dict:
-        r, w = index[word], stats.get(word)
-        return {"family": word, "subband": r["subband"], "rank": int(r["rank"]),
-                "members": [m for m in r["members"].split("|") if m], "definition": r["definition"],
-                "example": r["example"], "synonyms": synonyms.get(word, [])[:5], "reason": reason,
-                "missed": w.missed if w else 0, "shown": w.shown if w else 0, "last_date": w.last_date if w else ""}
+def gap(family: str, members: list[str], example: str) -> str:
+    """`example` with the headword or a family member replaced by BLANK; "" when none occurs in it.
+    Whole word, case-insensitive, longest form first (`uttered` before `utter`); only the first match goes."""
+    forms = sorted({w for w in [family, *members] if w}, key=len, reverse=True)
+    if not forms or not example:
+        return ""
+    pat = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in forms) + r")\b", re.IGNORECASE)
+    out, n = pat.subn(BLANK, example, count=1)
+    return out if n else ""
 
+
+def hint(word: str) -> str:
+    """First letter + length: `utter` → `u _ _ _ _`."""
+    return " ".join([word[:1], *["_"] * (len(word) - 1)])
+
+
+def card_entry(word: str, reason: str, index: dict[str, dict], stats: dict[str, WordStat],
+               synonyms: dict[str, list[str]], note: str = "", examples: Optional[dict[str, list[str]]] = None) -> dict:
+    """One study-list row / Anki note. `examples` = Bank.examples (override first, then the senses); the
+    example that contains the word is picked so the recall card has a gap, else sense 1 and a hint only.
+    A family outside `index` (an *extra* my-words entry) gets subband `extra`, no rank and the note as
+    definition."""
+    r, w = index.get(word), stats.get(word)
+    if r is None:
+        subband, rank, members, syn, definition, example, gapped = "extra", None, [], [], note, "", ""
+    else:
+        subband, rank = r["subband"], int(r["rank"])
+        members = [m for m in r["members"].split("|") if m]
+        syn, definition = synonyms.get(word, [])[:5], r["definition"]
+        candidates = list((examples or {}).get(word, [])) or [r["example"]]
+        example, gapped = candidates[0], ""
+        for e in [*candidates, note]:
+            gapped = gap(word, members, e)
+            if gapped:
+                example = e
+                break
+    return {"family": word, "subband": subband, "rank": rank, "members": members, "definition": definition,
+            "example": example, "gap": gapped, "hint": hint(word), "synonyms": syn, "reason": reason, "note": note,
+            "missed": w.missed if w else 0, "shown": w.shown if w else 0, "last_date": w.last_date if w else ""}
+
+
+def study_list(stats: dict[str, WordStat], front: str, index: dict[str, dict], synonyms: dict[str, list[str]],
+               my_words: Iterable[dict] = (), n: int = BATCH, examples: Optional[dict[str, list[str]]] = None) -> list[dict]:
+    """`my_words` = open my-words rows, newest first (open_my_words()); they come right after `repeat`."""
     newest = sorted((w for w in stats.values() if w.word in index), key=lambda w: w.last_at, reverse=True)
     picked: list[dict] = []
     seen: set[str] = set()
 
-    def take(words, reason):
-        for w in words:
-            if w.word not in seen and len(picked) < n:
-                seen.add(w.word)
-                picked.append(entry(w.word, reason))
+    def take(words, reason, note=""):
+        for word in words:
+            if word not in seen and len(picked) < n:
+                seen.add(word)
+                picked.append(card_entry(word, reason, index, stats, synonyms, note, examples))
 
-    take([w for w in newest if w.status == "repeat"], "repeat")
-    take([w for w in newest if w.status == "missed" and w.subband == front], "missed")
-    take([w for w in newest if w.status == "missed"], "missed")
-    take([w for w in newest if w.status == "shaky"], "shaky")
+    take([w.word for w in newest if w.status == "repeat"], "repeat")
+    for row in my_words:
+        take([row["family"]], "my-words", row["note"])
+    take([w.word for w in newest if w.status == "missed" and w.subband == front], "missed")
+    take([w.word for w in newest if w.status == "missed"], "missed")
+    take([w.word for w in newest if w.status == "shaky"], "shaky")
     rest = sorted((r for r in index.values() if r["subband"] == front and WORD.match(r["family"])
                    and r["family"] not in stats), key=lambda r: int(r["rank"]))
-    take([WordStat(r["family"], front) for r in rest], "frontier")
+    take([r["family"] for r in rest], "frontier")
     return picked
+
+
+def subband_entries(subband: str, index: dict[str, dict], stats: dict[str, WordStat], synonyms: dict[str, list[str]],
+                    examples: Optional[dict[str, list[str]]] = None) -> list[dict]:
+    """Every family of one sub-band that the test can show (WORD), by rank — the whole-sub-band deck.
+    Reason = the word's status when it has been shown, else `new`."""
+    rows = sorted((r for r in index.values() if r["subband"] == subband and WORD.match(r["family"])),
+                  key=lambda r: int(r["rank"]))
+    return [card_entry(r["family"], stats[r["family"]].status if r["family"] in stats else "new",
+                       index, stats, synonyms, "", examples) for r in rows]
+
+
+def my_words_entries(my_words: Iterable[dict], index: dict[str, dict], stats: dict[str, WordStat],
+                     synonyms: dict[str, list[str]], examples: Optional[dict[str, list[str]]] = None) -> list[dict]:
+    """The my-words deck: one note per open row."""
+    return [card_entry(r["family"], "my-words", index, stats, synonyms, r["note"], examples) for r in my_words]
+
+
+# ---- vocab/my-words.csv: words met in practice (date, family, source, note, done) ------------------------
+
+def load_my_words(path: Optional[Path] = None) -> list[dict]:
+    """Every row, oldest first; `done` is the export date or blank."""
+    path = path or MY_WORDS
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def open_my_words(rows: list[dict]) -> list[dict]:
+    """Rows not yet exported, newest first — what the study list and the my-words deck take."""
+    return [r for r in reversed(rows) if not r["done"]]
+
+
+def _write_my_words(rows: list[dict], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, MY_WORDS_HEADER, lineterminator="\n")
+        w.writeheader()
+        w.writerows({k: r.get(k, "") for k in MY_WORDS_HEADER} for r in rows)
+
+
+def add_my_word(family: str, source: str, note: str = "", day: Optional[date] = None,
+                path: Optional[Path] = None) -> bool:
+    """Append one open row. False (nothing written) when the family already has an open row — one open row
+    per family, whoever adds it; the same family can be added again once that row is done."""
+    family = family.strip().lower()
+    if not family:
+        raise ValueError("empty family")
+    path = path or MY_WORDS
+    rows = load_my_words(path)
+    if any(r["family"] == family and not r["done"] for r in rows):
+        return False
+    rows.append({"date": (day or date.today()).isoformat(), "family": family, "source": source,
+                 "note": " ".join(note.split()), "done": ""})
+    _write_my_words(rows, path)
+    return True
+
+
+def mark_done(families: Iterable[str], day: date, path: Optional[Path] = None) -> int:
+    """Set `done = day` on the open row of each family (after a deck that holds them was written)."""
+    wanted, n = set(families), 0
+    path = path or MY_WORDS
+    rows = load_my_words(path)
+    for r in rows:
+        if r["family"] in wanted and not r["done"]:
+            r["done"], n = day.isoformat(), n + 1
+    if n:
+        _write_my_words(rows, path)
+    return n
 
 
 def level_history(levels: list[dict]) -> tuple[list[dict], str]:
@@ -166,16 +284,29 @@ def level_history(levels: list[dict]) -> tuple[list[dict], str]:
     return hist, trend
 
 
-def export_anki(entries: list[dict], day: Optional[date] = None, decks: Optional[Path] = None) -> Path:
-    """One tab-separated card per family: front = word, back = forms + definition + example + synonyms."""
+def retest_due(levels: list[dict], front: str, today: Optional[date] = None) -> Optional[dict]:
+    """When to take the next test: RETEST_DAYS after the last reliable levels.csv row, in the frontier
+    sub-band. None until one reliable test exists; `days` < 0 = overdue."""
+    ok = [r for r in levels if r["reliable"] == "1"]
+    if not ok:
+        return None
+    last = date.fromisoformat(ok[-1]["date"])
+    due = last + timedelta(days=RETEST_DAYS)
+    return {"subband": front, "last": last.isoformat(), "due": due.isoformat(), "days": (due - (today or date.today())).days}
+
+
+def export_anki(name: str, entries: list[dict], decks: Optional[Path] = None) -> Path:
+    """vocab/decks/<name>.txt for Anki's text import: one note per family for the `DET family` note type
+    (docs/anki.md) — FIELDS in order, then the tag `<subband> <reason>` in column 8. `Word` is the first
+    column, so re-importing a regenerated file updates the notes instead of duplicating them."""
     decks = decks or DECKS
     decks.mkdir(parents=True, exist_ok=True)
-    path = decks / f"{(day or date.today()).isoformat()}.txt"
-    lines = ["#separator:tab", "#html:true", "#tags column:3"]
+    path = decks / f"{name}.txt"
+    lines = ["#separator:tab", "#html:true", f"#notetype:{NOTE_TYPE}", f"#deck:DET::{name}",
+             "#columns:" + "\t".join([*FIELDS, "Tags"]), "#tags column:8"]
     for e in entries:
-        back = [f"<i>{', '.join(e['members'])}</i>" if e["members"] else "", e["definition"],
-                f"<q>{e['example']}</q>" if e["example"] else "",
-                f"= {', '.join(e['synonyms'])}" if e["synonyms"] else ""]
-        lines.append("\t".join([e["family"], "<br>".join(p for p in back if p), f"{e['subband']} {e['reason']}"]))
+        cols = [e["family"], ", ".join(e["members"]), e["definition"], e["example"], e["gap"], e["hint"],
+                ", ".join(e["synonyms"]), f"{e['subband']} {e['reason']}"]
+        lines.append("\t".join(" ".join(str(c).split()) for c in cols))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path

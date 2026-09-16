@@ -1,5 +1,7 @@
-"""The learner (issue #6): word statuses, frontier, study order, Anki export, API."""
-from datetime import date, datetime
+"""The learner (issue #6): word statuses, frontier, study order, Anki export, API.
+Phase 3 (issue #8): recall-card gaps, my-words, sub-band decks, the re-test date."""
+import csv
+from datetime import date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -96,7 +98,7 @@ def test_study_list_order_and_export(tmp_path):
     shown = set(stats)
     index = fake_index(shown | {f"{front}-w{i}" for i in range(100)})
     syn = {w: ["alpha", "beta"] for w in shown}
-    words = learn.study_list(stats, front, index, syn, 200)
+    words = learn.study_list(stats, front, index, syn, [], 200)
     reasons = [w["reason"] for w in words]
     assert reasons == sorted(reasons, key=["repeat", "missed", "shaky", "frontier"].index)
     missed = [w for w in words if w["reason"] == "missed"]
@@ -107,14 +109,120 @@ def test_study_list_order_and_export(tmp_path):
     assert {w["family"] for w in words} >= {w.word for w in stats.values() if w.status == "missed"}
     assert not any(w["family"] in {x.word for x in stats.values() if x.status in ("known", "learned")} for w in words)
     assert words[0]["synonyms"] == ["alpha", "beta"] and words[0]["members"] == [words[0]["family"] + "s", words[0]["family"] + "ed"]
-    assert len(learn.study_list(stats, front, index, syn, 7)) == 7
+    assert len(learn.study_list(stats, front, index, syn, [], 7)) == 7
 
-    path = learn.export_anki(words[:3], date(2026, 9, 12), tmp_path / "decks")
+    path = learn.export_anki("2026-09-12", words[:3], tmp_path / "decks")
     lines = path.read_text().splitlines()
     assert path.name == "2026-09-12.txt" and lines[0] == "#separator:tab"
-    assert len(lines) == 3 + 3
-    front_, back, tags = lines[3].split("\t")
-    assert front_ == words[0]["family"] and "def " in back and "= alpha, beta" in back and tags.endswith(words[0]["reason"])
+    assert "#notetype:DET family" in lines and "#deck:DET::2026-09-12" in lines and "#tags column:8" in lines
+    header = len([l for l in lines if l.startswith("#")])
+    assert len(lines) == header + 3 and all(len(l.split("\t")) == 8 for l in lines[header:])
+    word, forms, definition, example, gap, hint, synonyms, tags = lines[header].split("\t")
+    assert word == words[0]["family"] and forms == f"{word}s, {word}ed" and definition == f"def {word}"
+    assert example == "" and gap == "" and hint == learn.hint(word) and synonyms == "alpha, beta"
+    assert tags == f"{words[0]['subband']} {words[0]['reason']}"
+
+
+def test_gap_and_hint():
+    members = ["unutterable", "utterance", "uttered", "uttering", "utters"]
+    assert learn.gap("utter", members, "an arrant fool") == ""                  # sense 1: no form in it
+    assert learn.gap("utter", members, "utter seriousness") == "_____ seriousness"
+    assert learn.gap("utter", members, "He uttered utter nonsense") == "He _____ utter nonsense"   # longest form, once
+    assert learn.gap("utter", members, "Utterly lost") == ""                    # whole words only
+    assert learn.gap("utter", members, "UTTER chaos") == "_____ chaos"
+    assert learn.hint("utter") == "u _ _ _ _" and learn.hint("go") == "g _"
+    # card_entry scans the examples in order and falls back to the note, then to sense 1 + hint only
+    index = {"utter": {"family": "utter", "subband": "4k-a", "rank": "3060", "members": "|".join(members),
+                       "definition": "complete", "example": "an arrant fool"}}
+    ex = {"utter": ["an arrant fool", "utter seriousness", "She expressed her anger"]}
+    e = learn.card_entry("utter", "new", index, {}, {}, examples=ex)
+    assert e["example"] == "utter seriousness" and e["gap"] == "_____ seriousness" and e["hint"] == "u _ _ _ _"
+    e = learn.card_entry("utter", "my-words", index, {}, {}, note="an utter mess", examples={"utter": ["an arrant fool"]})
+    assert e["example"] == "an utter mess" and e["gap"] == "an _____ mess" and e["note"] == "an utter mess"
+    e = learn.card_entry("utter", "new", index, {}, {}, examples={})
+    assert e["example"] == "an arrant fool" and e["gap"] == "" and e["rank"] == 3060
+    # an extra word: no index row → subband extra, no rank, the note is the definition
+    e = learn.card_entry("serendipity", "my-words", index, {}, {}, note="a happy accident")
+    assert e["subband"] == "extra" and e["rank"] is None and e["definition"] == "a happy accident"
+    assert e["members"] == [] and e["synonyms"] == [] and e["example"] == "" and e["gap"] == ""
+
+
+def test_my_words_in_study_list_and_export(tmp_path):
+    s = session("s", learner_at(5), 4, "2026-09-05T10:00:00")
+    stats = learn.word_stats([s])
+    _, front = learn.frontier(learn.subband_scores([s], SUBBANDS))
+    index = fake_index(set(stats) | {f"{front}-w{i}" for i in range(100)})
+    known = next(w.word for w in stats.values() if w.status == "known")
+    my_words = [{"date": "2026-09-06", "family": "serendipity", "source": "learn", "note": "a happy accident", "done": ""},
+                {"date": "2026-09-06", "family": known, "source": "test", "note": "", "done": ""}]
+    words = learn.study_list(stats, front, index, {}, my_words, 200)
+    reasons = [w["reason"] for w in words]
+    assert reasons == sorted(reasons, key=["repeat", "my-words", "missed", "shaky", "frontier"].index)
+    mine = [w for w in words if w["reason"] == "my-words"]
+    assert [w["family"] for w in mine] == ["serendipity", known]                  # a known word still shows when pinned
+    assert mine[0]["subband"] == "extra" and mine[0]["rank"] is None and mine[0]["definition"] == "a happy accident"
+    assert mine[1]["subband"] == known.split("-w")[0] and mine[1]["note"] == ""
+    # one entry per family: a pinned miss is listed once, as my-words (repeat would still come first)
+    missed = next(w.word for w in stats.values() if w.status == "missed")
+    again = learn.study_list(stats, front, index, {}, [{"family": missed, "note": "", "done": ""}], 200)
+    assert [w["reason"] for w in again if w["family"] == missed] == ["my-words"] and len(again) == len(words) - 2
+    # the my-words deck and the tags
+    path = learn.export_anki("my-words", learn.my_words_entries(my_words, index, stats, {}), tmp_path / "decks")
+    rows = [l.split("\t") for l in path.read_text().splitlines() if not l.startswith("#")]
+    assert path.name == "my-words.txt" and len(rows) == 2 and all(len(r) == 8 for r in rows)
+    assert rows[0][0] == "serendipity" and rows[0][2] == "a happy accident" and rows[0][7] == "extra my-words"
+    assert rows[1][7] == f"{known.split('-w')[0]} my-words"
+
+
+def test_add_my_word_dedupe_and_done(tmp_path):
+    path = tmp_path / "my-words.csv"
+    assert learn.load_my_words(path) == []
+    assert learn.add_my_word("Utter ", "test", "", date(2026, 9, 10), path)
+    assert not learn.add_my_word("utter", "learn", "again", date(2026, 9, 11), path)         # open row → no-op
+    assert learn.add_my_word("serendipity", "read-and-complete", "a  happy\naccident", date(2026, 9, 11), path)
+    rows = learn.load_my_words(path)
+    assert [r["family"] for r in rows] == ["utter", "serendipity"] and rows[1]["note"] == "a happy accident"
+    assert rows[0] == {"date": "2026-09-10", "family": "utter", "source": "test", "note": "", "done": ""}
+    assert [r["family"] for r in learn.open_my_words(rows)] == ["serendipity", "utter"]    # newest first
+    assert learn.mark_done(["utter", "nothere"], date(2026, 9, 12), path) == 1
+    rows = learn.load_my_words(path)
+    assert rows[0]["done"] == "2026-09-12" and rows[1]["done"] == ""
+    assert [r["family"] for r in learn.open_my_words(rows)] == ["serendipity"]
+    assert learn.add_my_word("utter", "learn", "", date(2026, 9, 13), path)                  # done → can be added again
+    assert learn.mark_done(["nothere"], date(2026, 9, 13), path) == 0
+    with path.open(newline="") as f:
+        assert next(csv.reader(f)) == learn.MY_WORDS_HEADER
+
+
+def test_subband_deck_from_the_real_bank(tmp_path):
+    """4k-a: 498 families (ms, et fail WORD), 8 columns, unshown families tagged new, utter from overrides.csv."""
+    bank, syn = main.BANK, main.SYNONYMS
+    entries = learn.subband_entries("4k-a", bank.index, {}, syn, bank.examples)
+    assert len(entries) == 498 and "ms" not in {e["family"] for e in entries}
+    assert [e["rank"] for e in entries] == sorted(e["rank"] for e in entries)
+    assert all(e["reason"] == "new" and e["subband"] == "4k-a" for e in entries)
+    utter = next(e for e in entries if e["family"] == "utter")
+    assert utter["definition"] == "complete and absolute" and utter["gap"] == "It was an _____ failure."
+    assert bank.examples["utter"][1:] == ["an arrant fool", "utter seriousness", "She expressed her anger"]
+    assert sum(1 for e in entries if not e["gap"]) == 232
+    stats = {"utter": learn.WordStat("utter", "4k-a", shown=1, missed=1, last="miss")}
+    assert learn.subband_entries("4k-a", bank.index, stats, syn, bank.examples)[entries.index(utter)]["reason"] == "missed"
+    path = learn.export_anki("4k-a", entries, tmp_path / "decks")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[:4] == ["#separator:tab", "#html:true", "#notetype:DET family", "#deck:DET::4k-a"]
+    rows = [l.split("\t") for l in lines if not l.startswith("#")]
+    assert len(rows) == 498 and all(len(r) == 8 for r in rows) and len({r[0] for r in rows}) == 498
+    assert all(r[5] and r[7] == "4k-a new" for r in rows)
+
+
+def test_retest_due():
+    rows = [{"date": "2026-09-01", "reliable": "1"}, {"date": "2026-09-03", "reliable": "0"}]
+    assert learn.retest_due([], "4k-a", date(2026, 9, 5)) is None
+    assert learn.retest_due(rows[1:], "4k-a", date(2026, 9, 5)) is None                  # unreliable: no clock
+    assert learn.retest_due(rows, "4k-a", date(2026, 9, 5)) == {"subband": "4k-a", "last": "2026-09-01",
+                                                                 "due": "2026-09-08", "days": 3}
+    assert learn.retest_due(rows, "3k-b", date(2026, 9, 8))["days"] == 0
+    assert learn.retest_due(rows, "3k-b", date(2026, 9, 10))["days"] == -2
 
 
 def test_level_history_trend():
@@ -130,10 +238,12 @@ def test_learn_api_and_export(tmp_path, monkeypatch):
     for name in ("SESSIONS", "RESULTS", "MISSES", "LEVELS"):
         monkeypatch.setattr(store, name, tmp_path / getattr(store, name).name)
     monkeypatch.setattr(learn, "DECKS", tmp_path / "decks")
+    monkeypatch.setattr(learn, "MY_WORDS", tmp_path / "my-words.csv")
     c = TestClient(main.app)
     empty = c.get("/api/learn").json()
     assert empty["sessions"] == 0 and empty["level"] is None and empty["frontier"] == "1k-a"
     assert empty["words"] and all(w["reason"] == "frontier" for w in empty["words"]) and len(empty["words"]) == 20
+    assert empty["counts"]["my-words"] == 0 and c.get("/api/config").json()["retest"] is None
 
     sid = c.post("/api/session").json()["session"]
     status = None
@@ -148,3 +258,51 @@ def test_learn_api_and_export(tmp_path, monkeypatch):
     assert d["words"][0]["subband"] == "1k-b"
     e = c.post("/api/learn/export?n=15").json()
     assert e["cards"] == 15 and e["file"].endswith(".txt") and (tmp_path / "decks").exists()
+    deck = (tmp_path / "decks" / f"{date.today().isoformat()}.txt").read_text(encoding="utf-8").splitlines()
+    assert "#notetype:DET family" in deck and all(len(l.split("\t")) == 8 for l in deck if not l.startswith("#"))
+
+    # the re-test line: one reliable test → due RETEST_DAYS later, in the frontier sub-band
+    r = c.get("/api/config").json()["retest"]
+    assert r == {"subband": "1k-b", "last": date.today().isoformat(),
+                 "due": (date.today() + timedelta(days=learn.RETEST_DAYS)).isoformat(), "days": learn.RETEST_DAYS}
+    # the Re-test button: block 1 in the frontier sub-band, even though it is below the middle of the scale
+    sid2 = c.post("/api/session?start=1k-b").json()["session"]
+    for _ in range(15):
+        c.post(f"/api/session/{sid2}/answer", json={"yes": False, "ms": 800})
+    with (tmp_path / "results.csv").open(newline="") as f:
+        first = next(r for r in csv.DictReader(f) if r["session"] == sid2)
+    assert first["subband"] == "1k-b" and main.SESSIONS[sid2].blocks[0].subband == "1k-b"
+    assert c.post("/api/session?start=9k-z").status_code == 400
+    del main.SESSIONS[sid2]
+
+
+def test_my_words_api(tmp_path, monkeypatch):
+    for name in ("SESSIONS", "RESULTS", "MISSES", "LEVELS"):
+        monkeypatch.setattr(store, name, tmp_path / getattr(store, name).name)
+    monkeypatch.setattr(learn, "DECKS", tmp_path / "decks")
+    monkeypatch.setattr(learn, "MY_WORDS", tmp_path / "my-words.csv")
+    c = TestClient(main.app)
+    assert c.get("/api/my-words").json() == {"open": 0, "words": []}
+    r = c.post("/api/my-words", json={"family": "Utter", "source": "test"})
+    assert r.status_code == 200 and r.json() == {"family": "utter", "source": "test", "note": "", "in_index": True}
+    assert c.post("/api/my-words", json={"family": "utter", "source": "learn", "note": "x"}).status_code == 409
+    assert c.post("/api/my-words", json={"family": "  ", "source": "learn"}).status_code == 422
+    r = c.post("/api/my-words", json={"family": "serendipity", "source": "learn", "note": "a happy accident"})
+    assert r.status_code == 200 and not r.json()["in_index"]
+    mw = c.get("/api/my-words").json()
+    assert mw["open"] == 2 and [w["family"] for w in mw["words"]] == ["serendipity", "utter"]
+
+    d = c.get("/api/learn?n=5").json()
+    assert d["counts"]["my-words"] == 2 and [w["reason"] for w in d["words"]] == ["my-words"] * 2 + ["frontier"] * 3
+    extra, utter = d["words"][:2]
+    assert extra["subband"] == "extra" and extra["rank"] is None and extra["definition"] == "a happy accident"
+    assert utter["subband"] == "4k-a" and utter["definition"] == "complete and absolute" and utter["gap"]
+    # the Learn button writes the batch and marks its my-words entries done; they drop out of the list
+    e = c.post("/api/learn/export?n=5").json()
+    assert e["cards"] == 5 and e["my_words_done"] == 2
+    rows = [l.split("\t") for l in (tmp_path / "decks" / f"{date.today().isoformat()}.txt").read_text().splitlines()
+            if not l.startswith("#")]
+    assert rows[0][:3] == ["serendipity", "", "a happy accident"] and rows[0][7] == "extra my-words" and rows[1][7] == "4k-a my-words"
+    assert c.get("/api/my-words").json()["open"] == 0
+    assert all(w["reason"] == "frontier" for w in c.get("/api/learn?n=5").json()["words"])
+    assert c.post("/api/my-words", json={"family": "utter", "source": "test"}).status_code == 200   # done → open again

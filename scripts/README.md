@@ -10,9 +10,12 @@ Run everything from the repo root.
 | `build_dict.py` | Python 3.10+ (stdlib) | `vocab/index.csv`, `data/extract/oewn_*.tsv` | `vocab/senses.csv`, `vocab/relations.csv`, `definition`/`example` in `vocab/index.csv` |
 | `build_pseudowords.py` | Python 3.10+ (stdlib) | `vocab/index.csv`, `vocab/subbands.csv`, `data/extract/blp_nonwords.tsv`, `data/raw/nation/`, `data/extract/{subtlex_zipf,prevalence}.tsv` | `vocab/pseudowords.csv` |
 | `audit_data.py` | Python 3.10+ (stdlib) | the above | `data/AUDIT.md` |
+| `export_anki.py` | Python 3.10+ (stdlib; imports `app/`) | `vocab/{index,senses,relations,overrides,my-words}.csv`, `vocab/tests/sessions/` | `vocab/decks/<subband>.txt`, `<date>.txt` (`--batch N`) or `my-words.txt` (`--my-words`, which also sets `done` in `vocab/my-words.csv`); `--check` writes nothing |
 
 Order: `fetch_raw.sh` → `extract_raw.py` → `build_bands.py` → `extract_raw.py oewn` → `build_dict.py` → `build_pseudowords.py` → `audit_data.py`
 (the OEWN extract is sliced to the families in `index.csv`, so it runs after the bands are built).
+`export_anki.py` is separate: it runs whenever a deck is wanted and reads only the built files. Deck format and the
+Anki note type: [docs/anki.md](../docs/anki.md), specified in [issue #8](https://github.com/nhanpc/DET/issues/8).
 
 Grouping rules and the column meanings are specified in [issue #2](https://github.com/nhanpc/DET/issues/2);
 the short version:

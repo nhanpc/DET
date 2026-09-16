@@ -98,11 +98,20 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 Keys: `Y` = real word, `N` = not a word, `Space` = next block. The result
 page shows the level, the estimated DET range, the pooled score per sub-band,
 a guessing check (false-alarm rate > 25 % → unreliable) and the words you
-missed. Everything is saved as you go, nothing to click: `vocab/tests/`
-holds `levels.csv` (one row per test), `results.csv` (per block),
-`misses.csv` (every word you got wrong, with the answer time) and
+missed, each with a *Pin* button that keeps it on the study list (see
+*my-words* below). Everything is saved as you go, nothing to click:
+`vocab/tests/` holds `levels.csv` (one row per test), `results.csv` (per
+block), `misses.csv` (every word you got wrong, with the answer time) and
 `sessions/*.json` (every item). An unfinished test is offered as *Resume*
 the next time you open the app. Schemas: [vocab/tests/README.md](vocab/tests/README.md).
+
+**Re-test after one week** (issue #8): once a reliable test is on file the
+start page says *Re-test `4k-a` due in 3 days* (or *due today* / *overdue by
+2 days*) — 7 days after the last reliable test, in the current frontier
+sub-band — and a *Re-test `4k-a`* button starts the staircase there instead
+of at `4k-a`'s default middle. Only the starting block changes: the walk,
+stop rules and level are the same. An unreliable test neither moves the date
+nor starts the clock.
 
 ## What to learn
 
@@ -116,14 +125,37 @@ reads the whole history and turns it into a study list (issue #6):
   still wrong), `missed`, `learned` (missed, then right — left out until
   missed again), `shaky` (right but slower than 2× that test's median),
   `known`.
-- **Study list order:** repeat → misses from the frontier sub-band → other
-  misses, newest first → shaky → the rest of the frontier sub-band by rank.
-  Each entry shows the family forms, definition, example and synonyms.
-- **Export to Anki** writes the batch to `vocab/decks/<date>.txt`
-  (tab-separated, one card per family, tag = sub-band + reason).
+- **Study list order:** repeat → my-words → misses from the frontier
+  sub-band → other misses, newest first → shaky → the rest of the frontier
+  sub-band by rank. Each entry shows the family forms, definition, example
+  and synonyms.
+- **my-words** (issue #8) = words met in real use, `vocab/my-words.csv`
+  (`date, family, source, note, done`): a miss you *Pin* on the result page
+  (`source=test`), the *Add a word* box on the Learn page (`source=learn`,
+  with a note — meaning or the sentence you met it in), or a Phase 5 drill
+  error (`source` = the task id). One open row per family; a word outside
+  `vocab/index.csv` is kept as an *extra* word with the note as its
+  definition. A test miss is not copied automatically — `misses.csv` already
+  has it; pinning is for a miss you want to keep even after the next test
+  marks it `learned`.
+- **Export to Anki** writes the batch to `vocab/decks/<date>.txt` and marks
+  the my-words entries in it `done`, so they drop off the list. Every deck
+  is one note per family for the `DET family` note type with **two cards**:
+  *Recognise* (word → forms, definition, example, synonyms — *Read and
+  Select*) and *Recall* (definition + the example with the word blanked out,
+  or a first-letter hint, and a typing box — *Read and Complete*, *Listen
+  and Type*). Set the note type up once from [docs/anki.md](docs/anki.md).
+- **Whole sub-band and my-words decks** come from the same code on the
+  command line: `python3 scripts/export_anki.py 4k-a` → `vocab/decks/4k-a.txt`
+  (every family of the sub-band, tagged `4k-a new` / `missed` / …, re-import
+  updates the notes), `--my-words` → `vocab/decks/my-words.txt`, `--batch 20`
+  = the Learn button, `4k-a --check` = the families with no example that
+  contains the word. Fix those, or simplify a definition, by hand in
+  `vocab/overrides.csv` (`family, definition, example`): it is applied on top
+  of `index.csv` when the app loads and never rewritten by a script.
 
-Nothing is stored beyond the history: the statuses are recomputed from
-`vocab/tests/` every time.
+Nothing is stored beyond the history and `my-words.csv`: the statuses are
+recomputed from `vocab/tests/` every time.
 
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
@@ -142,6 +174,7 @@ DET/
 ├── README.md
 ├── docs/
 │   ├── det-format.md            # test structure and scoring
+│   ├── anki.md                  # the "DET family" note type: fields, both card templates, import steps
 │   └── implementation-phases.md # build plan for this repo
 ├── data/
 │   ├── raw/                     # Nation word lists + SOURCES.md (URL, date, licence)
@@ -153,15 +186,16 @@ DET/
 │   ├── senses.csv               # dictionary: up to 3 senses per family (definition, example) from Open English WordNet
 │   ├── relations.csv            # synonym / antonym / similar links between families
 │   ├── pseudowords.csv          # invented words for the yes/no test (British Lexicon Project)
-│   ├── my-words.csv             # words met in practice
-│   ├── decks/                   # Anki exports from the study list (one card per family)
+│   ├── my-words.csv             # words met in practice: date, family, source, note, done
+│   ├── overrides.csv            # hand-simplified definition / example per family; never written by a script
+│   ├── decks/                   # Anki exports (Learn page, scripts/export_anki.py): one note, two cards per family
 │   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json; mocks.csv (hand-typed)
 │   └── progress.md              # baseline (hand-written) / generated report
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
 ├── practice/                    # per-task drills (speaking, writing, dictation)
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

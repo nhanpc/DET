@@ -45,5 +45,6 @@ data/raw/blp/*.txt
 design/**/*.html
 !design/**/*.dc.html
 
-# Anki exports from the Learn page: regenerated on demand, not tracked
+# Anki exports from the Learn page and scripts/export_anki.py (<date>.txt, <subband>.txt, my-words.txt):
+# regenerated on demand, not tracked
 vocab/decks/

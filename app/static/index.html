@@ -88,8 +88,10 @@
   td.ok { color: var(--green); font-weight: 500; } td.bad { color: var(--red); font-weight: 500; }
   .misses { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .misses div { display: flex; gap: 16px; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-  .misses b { font: 400 18px var(--serif); min-width: 130px; } .misses span { font-size: 14px; color: var(--text-2); }
+  .misses b { font: 400 18px var(--serif); min-width: 130px; } .misses span { font-size: 14px; color: var(--text-2); flex: 1; }
   .misses .empty { color: var(--muted); font-size: 14px; }
+  .pin { height: 26px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .pin:disabled { color: var(--muted); background: var(--bg); cursor: default; }
   .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   /* learn */
@@ -100,9 +102,13 @@
   .tag.shaky { background: #fbf1dc; color: #9a6b12; border-color: transparent; }
   .tag.learned { background: var(--green-bg); color: var(--green); border-color: transparent; }
   .tag.frontier { background: #e8eff7; color: var(--accent); border-color: transparent; }
+  .tag.my-words { background: #ece8f7; color: #5b4a9e; border-color: transparent; }
+  .tag.new { background: var(--bg); color: var(--muted); }
   .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .toolbar select { height: 36px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font: inherit; }
   .toolbar .secondary { height: 36px; padding: 0 14px; font-size: 14px; }
+  .toolbar input { height: 36px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font: inherit; min-width: 0; }
+  .toolbar input.family { width: 140px; } .toolbar input.note { flex: 1; min-width: 160px; }
   .words { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .words > div { display: grid; grid-template-columns: 32px 1fr; gap: 4px 14px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
   .words .n { grid-row: span 3; font: 500 13px var(--mono); color: var(--muted); padding-top: 6px; }
@@ -135,9 +141,11 @@
   <div class="cta">
     <button class="primary" id="btn-start">Start test</button>
     <button class="secondary" id="btn-resume" hidden></button>
+    <button class="secondary" id="btn-retest" hidden></button>
     <button class="secondary" id="btn-learn" hidden>What to learn</button>
     <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
     <div class="note" id="last" hidden></div>
+    <div class="note" id="retest" hidden></div>
   </div>
 </section>
 
@@ -222,8 +230,14 @@
         <button class="secondary" id="btn-export">Export to Anki</button>
         <span class="note" id="l-exported"></span>
       </div>
+      <form class="toolbar" id="l-add">
+        <input class="family" id="l-add-family" placeholder="Add a word" required autocomplete="off" spellcheck="false">
+        <input class="note" id="l-add-note" placeholder="note: meaning or the sentence you met it in" autocomplete="off">
+        <button class="secondary" type="submit">Add</button>
+        <span class="note" id="l-added"></span>
+      </form>
       <div class="words" id="l-words"></div>
-      <div class="note">Order: repeat misses, misses from the frontier sub-band, other misses, slow answers, then the rest of the frontier sub-band by rank. Words you missed and later got right are left out.</div>
+      <div class="note">Order: repeat misses, words you added (my-words), misses from the frontier sub-band, other misses, slow answers, then the rest of the frontier sub-band by rank. Words you missed and later got right are left out. Export to Anki writes the batch and marks its my-words entries done.</div>
     </div>
   </div>
   <div class="actions">
@@ -237,7 +251,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const screens = ['start', 'test', 'between', 'result', 'learn'];
-  let screen = 'start', sid = null, block = null, resume = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
+  let screen = 'start', sid = null, block = null, resume = null, retest = null, maxBlocks = 6, startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
 
   const api = async (path, opts) => {
     const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
@@ -260,6 +274,13 @@
       $('last').hidden = false;
     }
     $('btn-learn').hidden = !c.last;
+    retest = c.retest;
+    $('retest').hidden = $('btn-retest').hidden = !retest;
+    if (retest) {
+      const when = retest.days > 0 ? `due in ${retest.days} day${retest.days === 1 ? '' : 's'}` : retest.days === 0 ? 'due today' : `overdue by ${-retest.days} day${retest.days === -1 ? '' : 's'}`;
+      $('retest').innerHTML = `Re-test <b>${retest.subband}</b> ${when} (${retest.days > 0 ? retest.due : 'last reliable test ' + retest.last})`;
+      $('btn-retest').textContent = `Re-test ${retest.subband}`;
+    }
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
@@ -271,8 +292,8 @@
     if (block.pos >= block.size) { $('done-no').textContent = block.no; $('next-no').textContent = block.no + 1; show('between'); }
     else { renderTest(); show('test'); }
   }
-  async function start() {
-    const d = await api('/api/session', { method: 'POST' });
+  async function start(startBand) {
+    const d = await api('/api/session' + (typeof startBand === 'string' ? `?start=${encodeURIComponent(startBand)}` : ''), { method: 'POST' });
     sid = d.session; block = d.block; maxBlocks = d.max_blocks;
     beginTest();
   }
@@ -328,10 +349,17 @@
       `<tr><td class="mono">${p.subband}</td><td>${p.hits}/${p.n_real}</td><td>${p.false_alarms}/${p.n_pseudo}</td><td>${p.score.toFixed(2)}</td><td class="${p.mastered ? 'ok' : 'bad'}">${p.mastered ? 'mastered' : 'not yet'}</td></tr>`).join('');
     $('r-miss-count').textContent = r.misses.length;
     $('r-misses').innerHTML = r.misses.length
-      ? r.misses.map(m => `<div><b>${m.word}</b><span>${m.definition || ''}</span></div>`).join('')
+      ? r.misses.map(m => `<div><b>${esc(m.word)}</b><span>${esc(m.definition)}</span><button class="pin" data-word="${esc(m.word)}" title="Keep it on the study list even after you get it right">Pin</button></div>`).join('')
       : '<div class="empty">None — every real word was recognised.</div>';
     show('result');
   }
+  async function pin(btn) {
+    // A pinned miss goes to vocab/my-words.csv (source=test); an open entry already there → 409, button greyed either way.
+    btn.disabled = true;
+    try { await addMyWord(btn.dataset.word, 'test', ''); btn.textContent = 'Pinned'; }
+    catch (e) { btn.textContent = /already/.test(e.message) ? 'Pinned' : 'Failed'; if (!/already/.test(e.message)) btn.disabled = false; }
+  }
+  const addMyWord = (family, source, note) => api('/api/my-words', { method: 'POST', body: JSON.stringify({ family, source, note }) });
 
   // ---- learn
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -345,7 +373,7 @@
     $('l-level').textContent = d.level ? `level ${d.level}` : 'no level yet';
     const trend = { up: 'going up', down: 'going down', flat: 'holding' }[d.trend];
     $('l-why').textContent = `Next sub-band to master${trend ? ' · ' + trend : ''}`;
-    $('l-counts').innerHTML = ['repeat', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
+    $('l-counts').innerHTML = ['repeat', 'my-words', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
       .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`;
     $('l-history').innerHTML = d.history.map(h =>
       `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${h.level || '—'}</span><small>${h.date} · DET ${detRange(h.det_low, h.det_high)}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
@@ -354,7 +382,7 @@
       `<tr><td class="mono">${s.subband}${s.subband === d.frontier ? ' ←' : ''}</td><td>${s.blocks}</td><td>${s.score.toFixed(2)}</td><td class="${s.status === 'mastered' ? 'ok' : 'bad'}">${s.status}</td></tr>`).join('');
     $('l-words').innerHTML = d.words.length ? d.words.map((w, i) =>
       `<div><span class="n">${i + 1}</span>` +
-      `<span class="w"><b>${esc(w.family)}</b><small>${w.subband} · #${w.rank}</small><span class="tag ${w.reason}">${w.reason}${w.missed > 1 ? ' ×' + w.missed : ''}</span></span>` +
+      `<span class="w"><b>${esc(w.family)}</b><small>${w.subband}${w.rank == null ? '' : ' · #' + w.rank}</small><span class="tag ${w.reason}">${w.reason}${w.missed > 1 ? ' ×' + w.missed : ''}</span></span>` +
       `<span class="d">${esc(w.definition) || '<em>no definition</em>'}${w.example ? ' — <em>' + esc(w.example) + '</em>' : ''}</span>` +
       `<span class="m">${w.members.length ? 'forms: <i>' + esc(w.members.slice(0, 8).join(', ')) + '</i>' : ''}${w.synonyms.length ? (w.members.length ? ' · ' : '') + '= <i>' + esc(w.synonyms.join(', ')) + '</i>' : ''}</span></div>`).join('')
       : '<span class="empty">Nothing to learn yet — take a test first.</span>';
@@ -363,11 +391,26 @@
   }
   async function exportDeck() {
     const d = await api(`/api/learn/export?n=${$('l-batch').value}`, { method: 'POST' });
-    $('l-exported').textContent = `${d.cards} cards → ${d.file}`;
+    $('l-exported').textContent = `${d.cards} notes → ${d.file}` + (d.my_words_done ? ` · ${d.my_words_done} my-words done` : '');
+    if (d.my_words_done) openLearn();                          // the exported my-words entries drop out of the list
+  }
+  async function addWord(e) {
+    e.preventDefault();
+    const family = $('l-add-family').value.trim(), note = $('l-add-note').value.trim();
+    if (!family) return;
+    try {
+      const d = await addMyWord(family, 'learn', note);
+      $('l-add-family').value = ''; $('l-add-note').value = '';
+      await openLearn();
+      $('l-added').textContent = d.in_index ? `${d.family} added` : `${d.family} added as an extra word (not in the word list)`;
+    } catch (err) { $('l-added').textContent = err.message; }
   }
 
   // ---- wiring
-  $('btn-start').onclick = start;
+  $('btn-start').onclick = () => start();
+  $('btn-retest').onclick = () => start(retest && retest.subband);
+  $('r-misses').addEventListener('click', (e) => { const b = e.target.closest('button.pin'); if (b) pin(b); });
+  $('l-add').addEventListener('submit', addWord);
   $('btn-yes').onclick = () => answer(true);
   $('btn-no').onclick = () => answer(false);
   $('btn-continue').onclick = nextBlock;
@@ -375,7 +418,7 @@
   $('btn-learn').onclick = openLearn;
   $('btn-learn-next').onclick = openLearn;
   $('btn-learn-back').onclick = () => { show('start'); init(); };
-  $('btn-learn-test').onclick = start;
+  $('btn-learn-test').onclick = () => start();
   $('btn-export').onclick = exportDeck;
   $('l-batch').onchange = openLearn;
   $('btn-retake').onclick = () => { show('start'); init(); };

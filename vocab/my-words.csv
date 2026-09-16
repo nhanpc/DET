@@ -1,11 +1,1 @@
-family,subband,rank,pos_in_band,zipf,prevalence,cefr,gse,awl,pos,members,definition,example
-utter,4k-a,3060,192,3.703,0.9881,,,0,adj,unutterable|unutterably|unuttered|utterance|utterances|uttered|uttering|utters,without qualification; used informally as (often pejorative) intensifiers,an arrant fool
-tuck,4k-a,3467,116,3.901,0.9878,,,0,v,tucked|tucking|tucks|untucked,fit snugly into,insert your ticket into the slot
-heir,4k-a,3480,185,3.718,0.9848,,,0,n,heiress|heiresses|heirs,a person who is entitled by law or by the terms of a will to inherit the estate of another,
-sphere,4k-a,3241,307,3.396,0.9975,C1,,1,n,spheres|spherical|spherically,a particular environment or walk of life,his social sphere is limited
-fierce,3k-b,2823,267,3.681,0.9975,C1,,0,adj,fiercely|fierceness|fiercer|fiercest,marked by extreme and violent energy,a ferocious beating
-contend,3k-b,2894,448,2.982,0.9870,C1,,0,v,contended|contender|contenders|contending|contends|contention|contentions,maintain or assert,He contended that Communism had no future
-virtue,3k-b,2774,257,3.713,0.9876,C1,,0,n,virtues|virtuous|virtuously,the quality of doing what is right and avoiding what is wrong,
-confer,3k-a,2053,454,3.118,0.9326,C1,,1,v,conference|conferences|conferencing|conferred|conferring|confers|conferment,have a conference in order to talk something over,We conferred about a plan of action
-avenue,4k-a,3274,33,4.227,0.9922,,,0,n,avenues,a line of approach,they explored every avenue they could think of
-scent,4k-a,3433,163,3.776,0.9907,,,0,n,scented|scenting|scentless|scents|unscented,a distinctive odor that is pleasant,
+date,family,source,note,done
