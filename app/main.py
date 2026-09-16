@@ -14,7 +14,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import drills, irt, learn, progress, store, tts
+from . import drills, irt, learn, progress, store, textdiff, tts
 from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, WINDOW, Session
 from .bank import VOCAB, Bank, load_subbands, read_csv
 
@@ -30,6 +30,7 @@ SYNONYMS = learn.load_synonyms()
 FORMS = drills.form_index(BANK.index)                     # any word form → family, for drill errors and lacked words
 SENSES = read_csv(VOCAB / "senses.csv")
 EXAMPLES = {(r["family"], r["sense"]): r["example"] for r in SENSES}   # cloze id → the sentence it was cut from
+LEX = textdiff.Lexicon(BANK.index, BANK.b)                # text difficulty b_text (issue #15) for sentences and passages
 _CLOZE_POOL: list[dict] = []                              # sentence_candidates() that yield a cloze item; built on first use
 # Unfinished sessions come back from disk so a closed tab or a restart does not lose a test.
 _SAVED = store.load_sessions()
@@ -254,22 +255,26 @@ def attempt_of(attempt: str) -> str:
 
 def cloze_pool() -> list[dict]:
     """Sentence-mode candidates from senses.csv whose target is eligible and yield 2–5 blanks (None-ness does not
-    depend on the seed), with the family's forms pattern; every sub-band, built once."""
+    depend on the seed), with the family's forms pattern and b_text; every sub-band, built once and cached in
+    practice/read-and-complete/cloze.csv (gitignored, rebuilt like sentences.csv when missing or outdated)."""
     if not _CLOZE_POOL:
-        for c in drills.sentence_candidates(SENSES, BANK.index):
-            pat = drills.forms_pattern(c["family"], drills.members(BANK.index[c["family"]]))
-            if drills.cloze(c["example"], 0, pat) is not None:
-                _CLOZE_POOL.append({**c, "pattern": pat, "key": f"{c['family']}.{c['sense']}"})
+        rows = textdiff.load_cloze()
+        if not rows:
+            for c in drills.sentence_candidates(SENSES, BANK.index):
+                pat = drills.forms_pattern(c["family"], drills.members(BANK.index[c["family"]]))
+                if drills.cloze(c["example"], 0, pat) is not None:
+                    rows.append({**c, "key": f"{c['family']}.{c['sense']}"})
+            textdiff.write_cloze(textdiff.score_rows(rows, LEX, "example"))
+        for r in rows:
+            r["pattern"] = drills.forms_pattern(r["family"], drills.members(BANK.index[r["family"]]))
+        _CLOZE_POOL.extend(rows)
     return _CLOZE_POOL
 
 
 def sentence_bank() -> list[dict]:
-    """practice/listen-and-type/sentences.csv, written from senses.csv on first use (gitignored)."""
-    rows = drills.load_sentences()
-    if not rows:
-        rows = drills.build_sentences(SENSES, BANK.index)
-        drills.write_sentences(rows)
-    return rows
+    """practice/listen-and-type/sentences.csv, written from senses.csv on first use (gitignored); a file with the
+    header from before #15 (no b_text) is rebuilt the same way."""
+    return textdiff.sentence_bank(SENSES, BANK.index, LEX)
 
 
 def sentence_row(item: str) -> dict:
@@ -373,7 +378,7 @@ def drill_next(task: str, mode: str = "sentence"):
             raise HTTPException(404, f"passage {p['slug']} yields fewer than {drills.MIN_BLANKS} blanks")
         return {"task": task, "attempt": attempt, "id": drills.passage_id(p["slug"], seed), "mode": "passage",
                 "subband": "", "source": p.get("source", ""), "pieces": item["pieces"], "blanks": item["blanks"],
-                "seconds": t["passage_seconds"]}
+                "seconds": t["passage_seconds"], "b": textdiff.b_of(p) if p["b_text"] is not None else None}
     if task == "read-and-complete":
         stats = learn.word_stats(sessions, SUBBANDS)
         my_words = learn.open_my_words(learn.load_my_words())
@@ -385,13 +390,15 @@ def drill_next(task: str, mode: str = "sentence"):
         seed = rng.randrange(10_000)
         item = drills.cloze(c["example"], seed, c["pattern"])
         return {"task": task, "attempt": attempt, "id": drills.cloze_id(c["family"], c["sense"], seed), "mode": "sentence",
-                "subband": c["subband"], "pieces": item["pieces"], "blanks": item["blanks"], "seconds": t["seconds"]}
+                "subband": c["subband"], "pieces": item["pieces"], "blanks": item["blanks"], "seconds": t["seconds"],
+                "b": textdiff.b_of(c)}
     # listen-and-type and read-aloud: the dictation bank, frontier sub-band
     pool = [r for r in sentence_bank() if r["subband"] == front] or sentence_bank()
     row = drills.pick(pool, recent, lambda r: r["id"], rng)
     if row is None:
         raise HTTPException(404, "the sentence bank is empty")
-    d = {"task": task, "attempt": attempt, "id": row["id"], "subband": row["subband"], "seconds": t["seconds"], "prep": 0}
+    d = {"task": task, "attempt": attempt, "id": row["id"], "subband": row["subband"], "seconds": t["seconds"], "prep": 0,
+         "b": textdiff.b_of(row)}
     if task == "read-aloud":
         return {**d, "sentence": row["sentence"], "min": 0}
     speech(row["sentence"], row["voice"])

@@ -181,6 +181,7 @@ and commit, so the level history is readable on GitHub without the app:
 .venv/bin/python scripts/report.py --print    # the generated Markdown on stdout, nothing written
 .venv/bin/python scripts/report.py --anki ~/collection-copy.anki2   # + Anki review stats per sub-band
 .venv/bin/python scripts/report.py --check    # exit 1 if levels.csv / results.csv disagree with the session JSON
+.venv/bin/python scripts/report.py --sentences   # b_text histogram of the sentence bank per band (docs/sentences.md)
 ```
 
 The generated block holds: the **Now** line (pooled level, CEFR and DET
@@ -221,7 +222,8 @@ values in [docs/det-format.md](docs/det-format.md).
   `practice/read-and-complete/passages/`, 3 minutes, first sentence intact.
   Scored per blank; a sentence is not shown twice in a week.
 - **Listen and Type** (`listen-and-type`): a 6–14-word example of the frontier
-  sub-band (the band is the target word's, not the sentence's —
+  sub-band (the band is the target word's, not the sentence's; the sentence's
+  own difficulty is `b_text`, on the θ scale —
   [docs/sentences.md](docs/sentences.md)) read by an edge-tts neural voice (four accents; the MP3 is cached
   in `practice/listen-and-type/audio/`, so a sentence needs the internet
   once), at most 3 plays, 1 minute; scored by word-level edit distance and
@@ -308,7 +310,7 @@ DET/
 ├── README.md
 ├── docs/
 │   ├── det-format.md            # test structure and scoring
-│   ├── sentences.md             # where drill sentences come from; a sentence's band is its target word's
+│   ├── sentences.md             # where drill sentences come from; a sentence's band is its target word's, its difficulty b_text is computed
 │   ├── det-adaptive.md          # the θ / b scale: item difficulty, Rasch + EAP, level, frontier, DET anchors
 │   ├── anki.md                  # the "DET family" note type: fields, both card templates, import steps
 │   └── implementation-phases.md # build plan for this repo
@@ -330,8 +332,8 @@ DET/
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
-├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/passages/, listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py
+├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/ (passages/, cloze cache), listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py, passages.py
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

@@ -21,8 +21,12 @@ every word you got wrong or lacked lands in `vocab/my-words.csv` through
 | `interactive-writing` | part 1, then the row's `follow_up` on what you wrote | `writing/prompts.csv` | 5 min + 3 min, 50 words | self-rating, words |
 
 A sentence's `subband` is the band of the word it was fetched for, nothing
-more — what that does and does not tell you is measured in
-[docs/sentences.md](../docs/sentences.md).
+more; its difficulty is `b_text` (issue #15, `app/textdiff.py`) — predicted
+from every word's `b`, the length and the off-list count on the same scale as
+the learner's `θ`, stored next to the sentence in `sentences.csv` and
+`cloze.csv` and in a passage's front matter, and returned as `b` with every
+drill item. How the two relate is measured in
+[docs/sentences.md](../docs/sentences.md), which also has the formula.
 
 Read and Select is not drilled again: the weekly level test is that task.
 Interactive Reading / Listening and the Samples: notes only, in
@@ -62,13 +66,21 @@ logged in `attempts.csv` only).
 
 Passages: paste 50–80 words into `read-and-complete/passages/<slug>.md`
 (Simple English Wikipedia, CC BY-SA, is a good source) with a front-matter
-block giving the `source:` URL; three examples are committed.
+block giving the `source:` URL and the `licence:`, then run
+`.venv/bin/python scripts/passages.py score`, which writes `b_text:`,
+`b_adjust:` (0 until own responses refit it) and `features:` into the same
+block; `scripts/passages.py check` fails on a passage without source,
+licence or a current `b_text`, or with fewer than 6 blanks. Three examples
+are committed. Sentence-mode candidates are cached the same way in
+`read-and-complete/cloze.csv` (gitignored, rebuilt on the first request).
 
 **Listen and Type.** `listen-and-type/sentences.csv` (`id, family, subband,
-sentence, voice`) is built from `senses.csv` on the first request — one
-6–14-word example per family whose text contains a form of the family, one
-of four edge-tts accents per row — and is not committed, so the voices are
-local to the machine. The MP3 is generated once (needs the internet) and
+sentence, voice, b_text, b_adjust, features`) is built from `senses.csv` on
+the first request — one 6–14-word example per family whose text contains a
+form of the family, one of four edge-tts accents per row, its `b_text` and
+the features behind it as `k=v;…` — and is not committed, so the voices are
+local to the machine; a file with an older header is rebuilt the same way.
+The MP3 is generated once (needs the internet) and
 cached in `listen-and-type/audio/`; the second play needs no network. Score:
 lower-case, punctuation stripped, `difflib.SequenceMatcher` on the word
 lists; `delete` counts the missing reference words, `insert` the extra typed

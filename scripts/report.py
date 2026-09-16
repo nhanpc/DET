@@ -7,6 +7,8 @@ and the hand-typed mock tests in vocab/tests/mocks.csv (issue #11: chart, table,
     python3 scripts/report.py --out PATH            # write to PATH instead (created with a stub when missing)
     python3 scripts/report.py --anki collection.anki2   # + an Anki table from a *copy* of Anki's collection
     python3 scripts/report.py --check               # exit 1 when results.csv / levels.csv disagree with the session JSON
+    python3 scripts/report.py --sentences           # the b_text histogram per source band of the dictation bank (issue #15),
+                                                    # the table in docs/sentences.md; nothing written
 
 Only the text between `<!-- generated:start -->` and `<!-- generated:end -->` changes; the hand-written part
 above them is never touched (the rule table is in issue #7 § 6). Run it after every test, after typing a mock
@@ -22,10 +24,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import progress, store                               # noqa: E402  (after the sys.path line)
-from app.bank import VOCAB, Bank, load_subbands                     # noqa: E402
+from app import progress, store, textdiff                     # noqa: E402  (after the sys.path line)
+from app.bank import VOCAB, Bank, load_subbands, read_csv           # noqa: E402
 
 PROGRESS = VOCAB / "progress.md"
+
+
+def sentences_table(subbands) -> str:
+    """The dictation bank (built and cached when missing, like the app does) as a b_text histogram per source band."""
+    bank = Bank()
+    rows = textdiff.sentence_bank(read_csv(VOCAB / "senses.csv"), bank.index, textdiff.Lexicon(bank.index, bank.b))
+    return textdiff.histogram_table(textdiff.histogram(rows, [sb.name for sb in subbands]))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,9 +43,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--print", action="store_true", help="print the generated Markdown, write nothing")
     ap.add_argument("--anki", type=Path, metavar="PATH", help="a copy of Anki's collection.anki2: adds the Anki table")
     ap.add_argument("--check", action="store_true", help="exit 1 when the CSVs disagree with the session JSON")
+    ap.add_argument("--sentences", action="store_true", help="print the b_text histogram per source band of the sentence bank")
     a = ap.parse_args(argv)
 
     subbands = load_subbands()
+    if a.sentences:
+        print(sentences_table(subbands))
+        return 0
     sessions, levels = store.load_sessions(), store.load_levels()
     if a.check:
         problems = progress.check(sessions, levels, store.load_results())

@@ -39,7 +39,8 @@ own rank and is not used). Rank is the main feature of the DET's
 word-difficulty model, and it is what the bands already encode; `zipf`,
 `prevalence` and `cefr` stay in `index.csv` for a later refit. An optional
 `b_adjust` column (default 0, absent today) is added to `b` when responses
-refit an item (#15 does that for sentences).
+refit an item (#15 does that for sentences and passages: `textdiff.refit()`,
+[sentences.md](sentences.md) § How difficulty is computed).
 
 A pseudo-word has no `b`.
 
@@ -198,7 +199,8 @@ the one the drills now build on.
   values as responses come in. Here `b` is the band index, full stop, and a
   word that is easy for this learner despite its rank (a cognate, a technical
   term) is not corrected — `b_adjust` is the hook for doing so with one
-  learner's own responses (#15 does it for sentences after ≥ 5 attempts).
+  learner's own responses (#15 does it for sentences and passages after
+  ≥ 5 attempts, `app/textdiff.py`).
 - **One learner.** `A = 1.5` and the anchors are choices, not estimates; there
   is no population to fit them on. The DET estimate is the `vocab/subbands.csv`
   guess spread over the scale, not a prediction of a score.

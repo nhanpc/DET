@@ -4,7 +4,8 @@ Read and Complete   cloze(): C-test damage of a senses.csv example (sentence mod
                     every second eligible word loses its second half. Items are not stored: the id encodes the
                     inputs (`<family>.<sense>.<seed>` / `<passage-slug>.<seed>`) and cloze() is deterministic.
 Listen and Type     build_sentences(): the dictation bank (one 6–14-word example per family) cached in
-                    practice/listen-and-type/sentences.csv; dictation_score(): word-level edit distance.
+                    practice/listen-and-type/sentences.csv with its b_text (app/textdiff.py, issue #15);
+                    dictation_score(): word-level edit distance.
 Read Aloud, speaking and writing tasks: TASKS holds the real DET timings (docs/det-format.md); the prompts
 come from practice/{speaking,writing}/prompts.csv; the self-rating is the mean of four 1–5 lines.
 Every wrong or lacked word goes through family_of() → learn.add_my_word(family, source=<task>, note=…).
@@ -24,7 +25,7 @@ from typing import Iterable, Optional
 from .bank import PRACTICE, WORD
 
 SENTENCES = PRACTICE / "listen-and-type" / "sentences.csv"
-SENTENCES_HEADER = ["id", "family", "subband", "sentence", "voice"]
+SENTENCES_HEADER = ["id", "family", "subband", "sentence", "voice", "b_text", "b_adjust", "features"]   # #15 columns last
 PASSAGES = PRACTICE / "read-and-complete" / "passages"
 SPEAKING_PROMPTS = PRACTICE / "speaking" / "prompts.csv"
 WRITING_PROMPTS = PRACTICE / "writing" / "prompts.csv"
@@ -210,21 +211,27 @@ def build_sentences(senses: Iterable[dict], index: dict[str, dict], rng: Optiona
 
 
 def write_sentences(rows: list[dict], path: Optional[Path] = None) -> Path:
+    """SENTENCES_HEADER columns; a row without b_text / b_adjust / features gets blanks (textdiff.score_rows()
+    fills them)."""
     path = path or SENTENCES
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, SENTENCES_HEADER, lineterminator="\n")
+        w = csv.DictWriter(f, SENTENCES_HEADER, lineterminator="\n", restval="", extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     return path
 
 
 def load_sentences(path: Optional[Path] = None) -> list[dict]:
+    """The cached bank, or [] when the file is missing or was written with another header (before #15) — the
+    caller rebuilds it."""
     path = path or SENTENCES
     if not path.exists():
         return []
     with path.open(encoding="utf-8", newline="") as f:
-        return list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    return rows if reader.fieldnames == SENTENCES_HEADER else []
 
 
 # ---- Listen and Type ---------------------------------------------------------------------------------------
@@ -267,8 +274,10 @@ def load_prompts(path: Path) -> list[dict]:
 
 
 def load_passages(folder: Optional[Path] = None) -> list[dict]:
-    """practice/read-and-complete/passages/*.md → [{slug, text, source, ...}]: an optional front-matter block
-    (`---`, `key: value` lines, `---`) then the passage; the slug is the file name."""
+    """practice/read-and-complete/passages/*.md → [{slug, text, source, ..., b_text, b_adjust}]: an optional
+    front-matter block (`---`, `key: value` lines, `---`) then the passage; the slug is the file name. `b_text`
+    (a float, None until `scripts/passages.py score` wrote it) and `b_adjust` (float, 0 by default) are the
+    #15 difficulty; every other key stays a string."""
     folder = folder or PASSAGES
     out = []
     for p in sorted(folder.glob("*.md")) if folder.exists() else []:
@@ -279,6 +288,8 @@ def load_passages(folder: Optional[Path] = None) -> list[dict]:
                 k, _, v = line.partition(":")
                 if _:
                     meta[k.strip()] = v.strip()
+        meta["b_text"] = float(meta["b_text"]) if meta.get("b_text") else None
+        meta["b_adjust"] = float(meta["b_adjust"]) if meta.get("b_adjust") else 0.0
         out.append({**meta, "slug": p.stem, "text": " ".join(body.split())})
     return out
 
