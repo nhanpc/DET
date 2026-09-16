@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import progress, store                               # noqa: E402  (after the sys.path line)
-from app.bank import VOCAB, load_subbands                     # noqa: E402
+from app.bank import VOCAB, Bank, load_subbands                     # noqa: E402
 
 PROGRESS = VOCAB / "progress.md"
 
@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         if problems:
             return 1
     try:
-        report = progress.build(sessions, levels, subbands, mocks=store.load_mocks())
+        report = progress.build(sessions, levels, subbands, mocks=store.load_mocks(), b_of=Bank().b)
     except ValueError as e:
         path = store.MOCKS.relative_to(ROOT) if store.MOCKS.is_relative_to(ROOT) else store.MOCKS
         print(f"{path}: {e} — nothing written", file=sys.stderr)

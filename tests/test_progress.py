@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import learn, main, progress, store
+from app import irt, learn, main, progress, store
 from app.bank import load_subbands
 from tests.test_learn import blocks_session
 
@@ -43,7 +43,14 @@ def test_build_matches_learn_and_collapses_days():
     r = progress.build(sessions, levels, SUBBANDS, date(2026, 9, 16))
     scores = learn.subband_scores(sessions, SUBBANDS)
     assert r["generated"] == "2026-09-16" and r["tests"] == 4 and r["reliable_tests"] == 3 and r["no_level"] == 0
-    assert (r["level"], r["frontier"]) == learn.frontier(scores) == ("4k-a", "4k-b")
+    # level and frontier from θ: the last reliable session ("new": 20/20 at 4k-a, 6/10 at 4k-b), prior chained
+    thetas = learn.theta_history(sessions, SUBBANDS)
+    assert r["thetas"] == thetas and [h["id"] for h in thetas] == ["old", "same", "g", "new"]
+    assert (r["theta"], r["se"]) == learn.current_theta(thetas) == (thetas[-1]["theta"], thetas[-1]["se"])
+    assert (r["level"], r["frontier"]) == learn.frontier(r["theta"], SUBBANDS) == ("4k-b", "5k-a")
+    assert (r["det_estimate"], r["det_range"]) == (98, [95, 101]) and 8.2 < r["theta"] < 8.3
+    assert r["theta_series"] == [{"date": h["date"], "started": h["started"], "session": h["id"], "theta": h["theta"],
+                                  "se": h["se"], "frontier": h["frontier"]} for h in thetas if h["id"] != "g"]
     assert r["last_level"] == "4k-a" and (r["cefr"], r["det_low"], r["det_high"]) == ("B2", 90, 105)
     assert r["trend"] == learn.level_history(levels)[1] == "flat"           # 4k-a → 4k-a on det_low
     # one row per sub-band in subbands.csv order, seven keys; score/status straight from subband_scores()
@@ -63,24 +70,33 @@ def test_build_matches_learn_and_collapses_days():
     assert r["series"] == [{"date": "2026-09-01", "session": "same", "order": 7, "level": "4k-a"},
                            {"date": "2026-09-10", "session": "new", "order": 7, "level": "4k-a"}]
     assert r["anki"] is None
-    assert progress.now_line(r) == "Level 4k-a (B2) · DET ≈ 90–105 · frontier 4k-b · trend flat · 4 tests (3 reliable)"
+    assert progress.now_line(r) == "Level 4k-b (B2) · DET ≈ 98 (95–101) · θ 8.25 ± 0.37 · frontier 5k-a · trend flat · " \
+                                   "4 tests (3 reliable) · last test 4k-a"              # the levels.csv row is the old rule's
 
 
 def test_build_empty_history_and_last_test_differs():
     r = progress.build([], [], SUBBANDS, date(2026, 9, 16))
     assert r["level"] is None and r["frontier"] == "1k-a" and r["series"] == [] and r["tests"] == 0
+    assert r["theta"] is None and r["se"] is None and r["det_estimate"] is None and r["thetas"] == r["theta_series"] == []
     assert r["counts"]["seen"] == 0 and all(s["status"] == "untested" for s in r["subbands"])
     assert progress.now_line(r) == "No level yet · frontier 1k-a · 0 tests (0 reliable)"
     md = progress.render_markdown(r, SUBBANDS)
-    assert "```mermaid" not in md and "_No reliable test with a level yet" in md and "### Anki" not in md
-    # pooled level below the last test's level: the Now line names both; a reliable test with no level is footnoted
+    assert "```mermaid" not in md and "_No reliable test yet" in md and "### Anki" not in md and "_Not on the chart" not in md
+    # a weak last session: θ below the mastery gap → no level; the θ line says so and stays on the chart
     sessions, levels = fixture()
     levels.append(level_row("2026-09-12", "x", None))
-    sessions.append(blocks_session("x", "2026-09-12T10:00:00", [("1k-a", 5, 0)]))
+    sessions.append(blocks_session("x", "2026-09-12T10:00:00", [("1k-a", 3, 0)]))
     r = progress.build(sessions, levels, SUBBANDS, date(2026, 9, 16))
-    assert r["last_level"] is None and r["no_level"] == 1 and len(r["series"]) == 2
-    assert progress.now_line(r).endswith("5 tests (4 reliable) · last test no level")
-    assert "_Not on the chart: 1 unreliable, 1 without a level, 1 earlier on a day with more than one test._" in progress.render_markdown(r, SUBBANDS)
+    assert r["last_level"] is None and r["no_level"] == 1 and len(r["series"]) == 2 and len(r["theta_series"]) == 4
+    assert r["level"] is None and r["theta"] < irt.MASTERY_GAP and r["det_estimate"] == 10
+    assert progress.now_line(r) == "No level yet · θ 0.64 ± 0.37 · frontier 1k-a · trend down · 5 tests (4 reliable)"
+    md = progress.render_markdown(r, SUBBANDS)
+    assert "- 12 Sep 2026 10:00 · θ = 0.64 ± 0.37 → 1k-a (no level), DET ≈ 10 (10–10)\n" in md
+    assert "_Not on the chart: 1 unreliable._" in md
+    # a stronger last session whose levels.csv row (old rule) says no level: the Now line names both
+    sessions[-1] = blocks_session("x", "2026-09-12T10:00:00", [("1k-a", 7, 0)])
+    r = progress.build(sessions, levels, SUBBANDS, date(2026, 9, 16))
+    assert r["level"] == "1k-a" and progress.now_line(r).endswith("5 tests (4 reliable) · last test no level")
 
 
 def test_render_markdown_shape():
@@ -94,15 +110,20 @@ def test_render_markdown_shape():
     assert rows[0] == "| Sub-band | CEFR | DET | Blocks | Known | Score | Status |"
     assert [r.split(" | ")[0][2:] for r in rows[2:]] == [b.name for b in SUBBANDS] and all(r.count("|") == 8 for r in rows)
     assert "| 4k-a | B2 | 90–105 | 6 | 93 % | 0.91 | mastered |" in md
-    assert "| 4k-b | B2 | 90–105 | 2 | 60 % | 0.60 | not yet ← frontier |" in md
-    assert "| 5k-a | B2+ | 105–115 | 0 | — | — | untested |" in md
+    assert "| 4k-b | B2 | 90–105 | 2 | 60 % | 0.60 | not yet |" in md
+    assert "| 5k-a | B2+ | 105–115 | 0 | — | — | untested ← frontier |" in md
     assert "\n### Words\n\nrepeat " in md and "(%d seen)" % r["counts"]["seen"] in md
-    chart = progress.chart(r["series"], SUBBANDS)
+    # the ability section: one line per finished session (unreliable ones marked), then the θ chart
+    lines = md.split("### Ability over time\n\n")[1].split("\n\n```mermaid")[0].split("\n")
+    assert lines == progress.theta_lines(r["thetas"]) and len(lines) == 4
+    assert lines[0] == "- 1 Sep 2026 10:00 · θ = 6.97 ± 0.28 → 4k-a (level 3k-b), DET ≈ 83 (79–91)"
+    assert lines[2].endswith("DET ≈ 95 (91–98) · unreliable") and lines[3].startswith("- 10 Sep 2026 10:00 · θ = 8.25 ± 0.37 → 5k-a (level 4k-b)")
+    chart = progress.chart(r["theta_series"], SUBBANDS)
     assert chart in md and chart.split("\n")[:2] == ["```mermaid", "xychart-beta"]
-    assert '    x-axis ["1 Sep", "10 Sep"]' in chart and "    line [7, 7]" in chart
-    assert '    y-axis "Sub-band" 1 --> 12' in chart and "11 = C1 / DET 120" in chart
-    assert "| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |\n|---|" in md and "| 1k-a | 1k-b |" in md
-    assert "_Not on the chart: 1 unreliable, 1 earlier on a day with more than one test._" in md
+    assert '    x-axis ["1 Sep 10:00", "1 Sep 12:00", "10 Sep"]' in chart and "    line [6.97, 7.85, 8.25]" in chart
+    assert '    y-axis "θ" 0 --> 12' in chart and "10 = C1 / DET 120" in chart and "    line [10, 10, 10]" in chart
+    assert "| 0–1 | 1–2 | 2–3 | 3–4 | 4–5 | 5–6 | 6–7 | 7–8 | 8–9 | 9–10 | 10–11 | 11–12 |\n|---|" in md and "| 1k-a | 1k-b |" in md
+    assert "_Not on the chart: 1 unreliable._" in md
     r["anki"] = [{"subband": "4k-a", "cards": 40, "mature": 3, "reviews": 12, "lapses": 2}]
     md = progress.render_markdown(r, SUBBANDS)
     assert "### Anki\n\n| Sub-band | Cards | Mature | Reviews 7d | Lapses |\n|---|---|---|---|---|\n| 4k-a | 40 | 3 | 12 | 2 |\n" in md
@@ -398,4 +419,7 @@ def test_api_progress_matches_learn(tmp_path, monkeypatch):
     assert (p["level"], p["frontier"], p["trend"]) == (l["level"], l["frontier"], l["trend"])
     assert p["subbands"] == l["subbands"] and p["series"] == l["series"] == []
     assert {k: l["counts"][k] for k in p["counts"]} == p["counts"] and "my-words" in l["counts"]
-    assert set(p["counts"]) == {*learn.STATUSES, "seen"} and p["counts"]["seen"] == 60
+    assert set(p["counts"]) == {*learn.STATUSES, "seen"} and p["counts"]["seen"] == p["counts"]["known"]
+    assert p["counts"]["seen"] % 10 == 0 and 20 <= p["counts"]["seen"] <= 60                  # 10 real words a block
+    assert (p["theta"], p["level"], p["frontier"]) == (None, None, "1k-a") and not p["thetas"][0]["reliable"]
+    assert p["theta_series"] == [] and (l["theta"], l["thetas"]) == (None, p["thetas"])

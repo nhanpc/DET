@@ -1,6 +1,10 @@
 """Learner: read the test history, find the frontier sub-band, list the words to learn next.
 GitHub issue nhanpc/DET#6. Pure functions over the session dicts written by store.py.
 
+Level and frontier come from the ability θ of issue #14 (app/irt.py): theta_history() replays every finished
+session through the same posterior the test used, chaining each session's prior on the last reliable θ;
+frontier() turns the current θ into (level, frontier). The pooled sub-band scores stay as a second view.
+
 Word status, from every time the word was shown:
   repeat   missed twice or more, still wrong the last time
   missed   wrong the last time it was shown
@@ -24,6 +28,7 @@ from pathlib import Path
 from statistics import median
 from typing import Iterable, Optional
 
+from . import irt
 from .bank import VOCAB, WORD, Subband
 
 BATCH = 20
@@ -65,7 +70,9 @@ def _sorted(sessions: list[dict]) -> list[dict]:
     return sorted((s for s in sessions if s.get("finished")), key=lambda s: s["started"])
 
 
-def word_stats(sessions: list[dict]) -> dict[str, WordStat]:
+def word_stats(sessions: list[dict], subbands: Optional[list[Subband]] = None) -> dict[str, WordStat]:
+    """`subbands` lets an item saved with its `b` (#14) carry its own sub-band; a block spans up to three, so
+    the block's label is only the fallback for files from before #14."""
     stats: dict[str, WordStat] = {}
     for s in _sorted(sessions):
         day = s["started"][:10]
@@ -76,7 +83,8 @@ def word_stats(sessions: list[dict]) -> dict[str, WordStat]:
             for i in b["items"]:
                 if not i["real"] or i["answer"] is None:
                     continue
-                w = stats.setdefault(i["word"], WordStat(i["word"], b["subband"]))
+                own = irt.item_band(i["b"], subbands).name if subbands and i.get("b") is not None else b["subband"]
+                w = stats.setdefault(i["word"], WordStat(i["word"], own))
                 w.shown += 1
                 w.last_date, w.last_at = day, s["started"]
                 w.dates.append(day)
@@ -126,17 +134,62 @@ def status_counts(stats: dict[str, WordStat]) -> dict[str, int]:
     return counts
 
 
-def frontier(scores: list[dict]) -> tuple[Optional[str], str]:
-    """(level, frontier): level = highest mastered sub-band; frontier = the lowest sub-band at or below
-    level+1 that was tested and failed, else the one right above the level."""
-    names = [s["subband"] for s in scores]
-    mastered = [s["subband"] for s in scores if s["status"] == "mastered"]
-    level = mastered[-1] if mastered else None
-    top = min(len(scores) - 1, names.index(level) + 1) if level else len(scores) - 1
-    for s in scores[: top + 1]:
-        if s["status"] == "not yet":
-            return level, s["subband"]
-    return level, names[top] if level else names[0]
+def session_theta(s: dict, subbands: list[Subband], b_of: Optional[dict[str, float]] = None,
+                  theta0: float = irt.THETA0) -> tuple[float, float]:
+    """(θ, se) of one saved session, every answered item replayed in order through irt.Posterior exactly as the
+    test did: a real word at its `b` (the item's, else `b_of[word]`, else the middle of the block's sub-band),
+    a pseudo-word "yes" as a wrong answer at the θ of that moment. Prior mean = the session's own `theta0`
+    when saved, else `theta0`."""
+    by = {sb.name: sb for sb in subbands}
+    post = irt.Posterior(s.get("theta0", theta0))
+    theta, se = post.estimate()
+    for b in s["blocks"]:
+        for i in b["items"][: b.get("pos", len(b["items"]))]:
+            if i["answer"] is None:
+                continue
+            if i["real"]:
+                b_ = i.get("b")
+                if b_ is None:
+                    b_ = (b_of or {}).get(i["word"], by[b["subband"]].order - 0.5)
+                post.add(b_, 1.0 if i["answer"] else 0.0)
+            elif i["answer"]:
+                post.add(theta, 0.0)
+            else:
+                continue
+            theta, se = post.estimate()
+    return theta, se
+
+
+def theta_history(sessions: list[dict], subbands: list[Subband], b_of: Optional[dict[str, float]] = None) -> list[dict]:
+    """One row per finished session, oldest first: id, date, started, theta, se, level, frontier, det, det_range,
+    reliable. The prior of each session is the θ of the last reliable session before it (6.0 for the first),
+    unless the file carries its own `theta0`; an unreliable session gets a θ but never becomes the prior."""
+    out, prior = [], irt.THETA0
+    for s in _sorted(sessions):
+        theta, se = session_theta(s, subbands, b_of, prior)
+        reliable = bool(s["result"]["reliable"])
+        out.append({"id": s["id"], "date": s["started"][:10], "started": s["started"], "theta": theta, "se": se,
+                    "level": irt.level_of(theta, subbands), "frontier": irt.frontier_of(theta, subbands),
+                    "det": irt.det_estimate(theta, subbands), "det_range": irt.det_range(theta, se, subbands),
+                    "reliable": reliable})
+        if reliable:
+            prior = theta
+    return out
+
+
+def current_theta(history: list[dict]) -> Optional[tuple[float, float]]:
+    """(θ, se) of the last reliable session — the learner's ability now and the next session's prior; None
+    before the first reliable test."""
+    ok = [h for h in history if h["reliable"]]
+    return (ok[-1]["theta"], ok[-1]["se"]) if ok else None
+
+
+def frontier(theta: Optional[float], subbands: list[Subband]) -> tuple[Optional[str], str]:
+    """(level, frontier) from θ: level = the sub-band containing θ − irt.MASTERY_GAP (None below the scale),
+    frontier = the sub-band containing θ. Without a reliable test (θ None): no level, the first sub-band."""
+    if theta is None:
+        return None, subbands[0].name
+    return irt.level_of(theta, subbands), irt.frontier_of(theta, subbands)
 
 
 def load_synonyms(path: Path = RELATIONS) -> dict[str, list[str]]:
@@ -287,10 +340,12 @@ def mark_done(families: Iterable[str], day: date, path: Optional[Path] = None) -
 
 
 def level_history(levels: list[dict]) -> tuple[list[dict], str]:
-    """levels.csv rows → (history, trend); trend compares the last two reliable results."""
+    """levels.csv rows → (history, trend); trend compares the last two reliable results. `theta` and `se` are
+    None on rows from before #14."""
     hist = [{"date": r["date"], "session": r["session"], "level": r["level"] or None,
              "det_low": int(r["det_low"]) if r["det_low"] else None,
-             "det_high": int(r["det_high"]) if r["det_high"] else None, "reliable": r["reliable"] == "1"}
+             "det_high": int(r["det_high"]) if r["det_high"] else None, "reliable": r["reliable"] == "1",
+             "theta": float(r["theta"]) if r.get("theta") else None, "se": float(r["se"]) if r.get("se") else None}
             for r in levels]
     ok = [h["det_low"] or 0 for h in hist if h["reliable"]]
     trend = "" if len(ok) < 2 else "up" if ok[-1] > ok[-2] else "down" if ok[-1] < ok[-2] else "flat"

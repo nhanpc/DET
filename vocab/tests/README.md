@@ -6,7 +6,7 @@ One session = one adaptive yes/no test; the `session` column joins the files.
 
 | File | One row per | Written |
 |------|-------------|---------|
-| `sessions/<id>.json` | session (every block, item, answer, ms) | after every answer; resumable if unfinished |
+| `sessions/<id>.json` | session (every block, item, answer, ms, the item's `b` and θ after each block) | after every answer; resumable if unfinished |
 | `results.csv` | finished block | at the end of each block |
 | `misses.csv` | wrong answer | at the end of each block |
 | `levels.csv` | finished session | when the test stops |
@@ -18,11 +18,11 @@ One session = one adaptive yes/no test; the `session` column joins the files.
 |--------|---------|
 | `date` | session date, `YYYY-MM-DD` |
 | `session` | session id (`<date>_<time>_<4 hex>`) |
-| `subband` | sub-band the block was drawn from |
+| `subband` | the sub-band containing θ when the block was drawn (its label; since #14 the 10 real words come from `\|b − θ\| ≤ 1`, so up to three sub-bands — the invented words are from this one) |
 | `n` | items in the block (10 real + 5 invented) |
 | `hits` | real words answered *Yes* |
 | `false_alarms` | invented words answered *Yes* |
-| `score` | `hits/10 − false_alarms/5`; mastered at ≥ 0.85 |
+| `score` | `hits/10 − false_alarms/5`; mastered at ≥ 0.85 (the block view; the level comes from θ) |
 
 ## `misses.csv`
 
@@ -41,11 +41,12 @@ Only the word is stored; join `kind = miss` rows to `vocab/index.csv` on
 | column | meaning |
 |--------|---------|
 | `date`, `session` | as above |
-| `level` | highest sub-band with pooled score ≥ 0.85; empty = none |
-| `det_low`, `det_high` | estimated DET range for that sub-band |
+| `level` | the sub-band containing θ − 1.16, where 85 % of the words are known (rows from before #14: highest sub-band with pooled score ≥ 0.85); empty = none |
+| `det_low`, `det_high` | that sub-band's DET range from `vocab/subbands.csv` |
 | `blocks`, `items` | how much was tested |
 | `fa_rate` | overall false-alarm rate; > 0.25 → unreliable |
 | `reliable` | `1` / `0` |
+| `theta`, `se` | ability θ and its standard error at the end of the session ([docs/det-adaptive.md](../../docs/det-adaptive.md)); blank on rows written before #14 — the report replays those sessions to get their θ. The header gains the two columns the first time the app writes a row after the upgrade; older rows are padded with blanks |
 
 ## `mocks.csv`
 
@@ -89,8 +90,15 @@ number, the header being line 1.
 
 ## `sessions/<id>.json`
 
-`id`, `started`, `finished`, `stop_reason`, `blocks[]` (`no`, `subband`,
-`pos` = next item to answer, `hits`, `false_alarms`, `score`, `items[]` with
-`word`, `real`, `definition`, `answer`, `ms`) and, once finished, `result`
-(the same object the result page shows). An unfinished file is picked up when
+`id`, `started`, `finished`, `stop_reason`, `theta0` (the prior mean: the
+last reliable session's θ, 6.0 before the first), `blocks[]` (`no`,
+`subband`, `pos` = next item to answer, `hits`, `false_alarms`, `score`,
+`theta_from` = the θ the block was drawn around, `theta` and `se` after its
+last answer, `items[]` with `word`, `real`, `definition`, `answer`, `ms`, `b`
+= the word's difficulty, `null` for an invented word) and, once finished,
+`result` (the same object the result page shows: `level`, `frontier`,
+`theta`, `se`, `det_estimate`, `det_range`, the pooled block scores, the
+path, the misses). Files from before #14 have no `theta0`, `b`, `theta_from`,
+`theta` or `se`; they load, and `learn.theta_history()` replays them through
+the same estimator with the bank's `b`. An unfinished file is picked up when
 the app starts and offered as *Resume* on the start page.

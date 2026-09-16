@@ -100,6 +100,13 @@ format, adaptively. Specified in issue #4; UI prototype in `design/level-test/`.
 
 Output: a level estimate in ~5 minutes, repeatable weekly. Status: done (issue #4).
 
+Issue #14 later moved the test onto one θ / b scale: every word has a
+continuous difficulty `b` (the band index, 0–12), every answer updates the
+ability `θ` (Rasch, EAP), blocks are drawn from `|b − θ| ≤ 1`, and the test
+stops once `se < 0.35`. Level = the sub-band containing `θ − 1.16`, frontier
+= the one containing `θ`; the block scores stay as a second view. See
+[docs/det-adaptive.md](det-adaptive.md).
+
 ## Phase 3 — Learning loop & decks
 
 Goal: learn the current sub-band as word families, and close the loop
@@ -130,8 +137,9 @@ different cards. README § *What to learn* is the user-facing summary.
    and show up on the study list right after the repeat misses; the Learn
    button or `--my-words` exports them and marks them `done`.
 5. Re-test: the start page shows *Re-test `<frontier>` due in N days* (7 days
-   after the last reliable test) and a button that starts the staircase in
-   the frontier sub-band.
+   after the last reliable test) and a button that starts a test with the
+   last reliable `θ` as its prior (since #14; before that, in the frontier
+   sub-band).
 
 Output: Anki decks, a daily routine and the re-test reminder.
 
@@ -257,5 +265,6 @@ flowchart TD
 ## Not planned (yet)
 
 - Automatic speaking/writing scoring. Self-review with a checklist first.
-- IRT/CAT scoring (catsim) for the level test: a continuous score with a
-  confidence interval. File separately if the sub-band staircase feels coarse.
+- Calibrating item difficulties on responses. The level test is a CAT on a
+  Rasch scale since #14 (`app/irt.py`, no library), but `b` is predicted
+  from rank, not fitted; one learner's responses cannot fit 6 000 items.

@@ -5,7 +5,8 @@ progress.md. scripts/report.py does the I/O; main.py serves the same dict as GET
 the Learn page from it, so the report and the app cannot disagree.
 
 Everything comes from vocab/tests/ (sessions/*.json, levels.csv, mocks.csv): the hand-written half of
-progress.md is never parsed. Mock tests (issue #11, Phase 6) are the hand-typed mocks.csv rows: parse_mocks()
+progress.md is never parsed. Level, frontier and the DET estimate come from the ability θ (issue #14):
+learn.theta_history() replays every session, so sessions from before #14 get a θ too. Mock tests (issue #11, Phase 6) are the hand-typed mocks.csv rows: parse_mocks()
 validates them, mock_rows() keeps the last row per date and source, mock_focus() picks next week's drill
 focus, mock_verdict() answers "book the real test yet?" — the *Mock tests* section after **Anki**.
 """
@@ -15,7 +16,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from . import learn
+from . import irt, learn
 from .bank import Subband
 
 START = "<!-- generated:start -->"
@@ -46,8 +47,15 @@ def det_range(low: Optional[int], high: Optional[int]) -> str:
     return f"{low}+" if high is not None and high >= 160 else f"{low}–{high}"
 
 
+def theta_series(thetas: list[dict]) -> list[dict]:
+    """One chart point per reliable session: date, started, session, theta, se, frontier."""
+    return [{"date": h["date"], "started": h["started"], "session": h["id"], "theta": h["theta"], "se": h["se"],
+             "frontier": h["frontier"]} for h in thetas if h["reliable"]]
+
+
 def level_series(history: list[dict], by: dict[str, Subband]) -> list[dict]:
-    """One chart point per day: the day's last reliable test that has a level, y = Subband.order."""
+    """One chart point per day: the day's last reliable test that has a level, y = Subband.order (the view
+    from before #14, still served under `series`)."""
     days: dict[str, dict] = {}
     for h in history:
         if h["reliable"] and h["level"] in by:
@@ -166,13 +174,17 @@ def mocks_report(mocks: list[dict], history: list[dict], today: date) -> dict:
 
 
 def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None,
-          mocks: Optional[list[dict]] = None) -> dict:
-    """The report: pooled level and frontier (learn.frontier), the sub-band rows, the word-status counts, the
-    chart series and the mock tests (mocks_report() on `mocks`, the store.load_mocks() rows; None = no rows).
-    `anki` stays None; scripts/report.py fills it from anki_stats() when asked."""
+          mocks: Optional[list[dict]] = None, b_of: Optional[dict[str, float]] = None) -> dict:
+    """The report: θ, level and frontier from the last reliable session (learn.theta_history on `sessions`,
+    word difficulties from `b_of` = Bank.b, else the middle of each block's sub-band), the pooled sub-band rows,
+    the word-status counts, the chart series and the mock tests (mocks_report() on `mocks`, the
+    store.load_mocks() rows; None = no rows). `anki` stays None; scripts/report.py fills it from anki_stats()."""
     by = {sb.name: sb for sb in subbands}
     scores = learn.subband_scores(sessions, subbands)
-    level, front = learn.frontier(scores)
+    thetas = learn.theta_history(sessions, subbands, b_of)
+    now = learn.current_theta(thetas)
+    theta, se = now if now else (None, None)
+    level, front = learn.frontier(theta, subbands)
     history, trend = learn.level_history(levels)
     reliable = [h for h in history if h["reliable"]]
     sb = by.get(level) if level else None
@@ -185,15 +197,28 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
             "level": level, "frontier": front, "last_level": reliable[-1]["level"] if reliable else None,
             "cefr": sb.cefr if sb else None, "det_low": sb.det_low if sb else None,
             "det_high": sb.det_high if sb else None, "trend": trend,
-            "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions)),
+            "theta": theta, "se": se,
+            "det_estimate": irt.det_estimate(theta, subbands) if now else None,
+            "det_range": list(irt.det_range(theta, se, subbands)) if now else None,
+            "thetas": thetas, "theta_series": theta_series(thetas),
+            "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions, subbands)),
             "series": level_series(history, by), "anki": None,
             "mocks": mocks_report(mocks or [], history, today)}
 
 
+def det_line(det: int, rng) -> str:
+    """`DET ≈ 97 (95–100)`."""
+    return f"DET ≈ {det} ({rng[0]}–{rng[1]})"
+
+
 def now_line(r: dict) -> str:
-    """`Level 3k-b (B1) · DET ≈ 60–85 · frontier 4k-a · trend up · 3 tests (3 reliable) · last test 4k-a`."""
-    parts = [f"Level {r['level']} ({r['cefr']}) · DET ≈ {det_range(r['det_low'], r['det_high'])}" if r["level"]
-             else "No level yet", f"frontier {r['frontier']}"]
+    """`Level 4k-a (B2) · DET ≈ 97 (95–100) · θ 8.13 ± 0.34 · frontier 5k-a · trend up · 3 tests (3 reliable)`
+    (`· last test 3k-b` when the levels.csv row of the last reliable test says something else)."""
+    parts = [f"Level {r['level']} ({r['cefr']}) · {det_line(r['det_estimate'], r['det_range'])}" if r["level"]
+             else "No level yet"]
+    if r["theta"] is not None:
+        parts.append(f"θ {r['theta']:.2f} ± {r['se']:.2f}")
+    parts.append(f"frontier {r['frontier']}")
     if r["trend"]:
         parts.append(f"trend {r['trend']}")
     parts.append(f"{r['tests']} test{'s' if r['tests'] != 1 else ''} ({r['reliable_tests']} reliable)")
@@ -208,15 +233,35 @@ def table(header: list[str], rows: list[list]) -> str:
     return "\n".join(out)
 
 
+def theta_label(p: dict, series: list[dict]) -> str:
+    """`15 Sep`, with the time (`15 Sep 21:44`) when the day has more than one session on the chart."""
+    day = date.fromisoformat(p["date"]).strftime("%-d %b")
+    return f"{day} {p['started'][11:16]}" if sum(1 for q in series if q["date"] == p["date"]) > 1 else day
+
+
 def chart(series: list[dict], subbands: list[Subband]) -> str:
-    """Mermaid xychart of `series` as is: x = one label per day (`15 Sep`), y = sub-band index."""
+    """Mermaid xychart of the θ series: x = one label per reliable session, y = θ on the band index (0–12);
+    the second line is the goal, the bottom of the first sub-band at DET TARGET."""
     goal = next((sb for sb in subbands if sb.det_low >= TARGET), subbands[-1])
-    labels = ", ".join(f'"{date.fromisoformat(p["date"]).strftime("%-d %b")}"' for p in series)
+    labels = ", ".join(f'"{theta_label(p, series)}"' for p in series)
+    thetas = ", ".join(f"{p['theta']:.2f}" for p in series)
     return "\n".join(["```mermaid", "xychart-beta",
-                      f'    title "Level over time (1 = {subbands[0].name} … {len(subbands)} = {subbands[-1].name}; '
-                      f'{goal.order} = {goal.cefr} / DET {TARGET})"',
-                      f"    x-axis [{labels}]", f'    y-axis "Sub-band" 1 --> {len(subbands)}',
-                      f"    line [{', '.join(str(p['order']) for p in series)}]", "```"])
+                      f'    title "Ability θ per test (0–1 = {subbands[0].name} … {len(subbands) - 1}–{len(subbands)} = '
+                      f'{subbands[-1].name}; {goal.order - 1} = {goal.cefr} / DET {TARGET})"',
+                      f"    x-axis [{labels}]", f'    y-axis "θ" 0 --> {len(subbands)}',
+                      f"    line [{thetas}]",
+                      f"    line [{', '.join([str(goal.order - 1)] * len(series))}]", "```"])
+
+
+def theta_lines(thetas: list[dict]) -> list[str]:
+    """One line per finished session: `- 15 Sep 21:44 · θ = 6.77 ± 0.25 → 4k-a (level 3k-b), DET ≈ 80 (77–83)`."""
+    out = []
+    for h in thetas:
+        when = date.fromisoformat(h["date"]).strftime("%-d %b %Y") + " " + h["started"][11:16]
+        level = f"level {h['level']}" if h["level"] else "no level"
+        out.append(f"- {when} · θ = {h['theta']:.2f} ± {h['se']:.2f} → {h['frontier']} ({level}), "
+                   f"{det_line(h['det'], h['det_range'])}" + ("" if h["reliable"] else " · unreliable"))
+    return out
 
 
 def mock_chart(series: list[dict]) -> str:
@@ -265,19 +310,17 @@ def render_markdown(r: dict, subbands: list[Subband]) -> str:
                       s["status"] + (" ← frontier" if s["subband"] == r["frontier"] else "")] for s in r["subbands"]]))
     c = r["counts"]
     md += ["", "### Words", "", " · ".join(f"{k} {c[k]}" for k in learn.STATUSES) + f" ({c['seen']} seen)",
-           "", "### Level over time", ""]
-    if r["series"]:
-        md += [chart(r["series"], subbands), "",
-               table([str(sb.order) for sb in subbands], [[sb.name for sb in subbands]])]
+           "", "### Ability over time", ""]
+    if r["thetas"]:
+        md += theta_lines(r["thetas"]) + [""]
+    if r["theta_series"]:
+        md += [chart(r["theta_series"], subbands), "",
+               table([f"{sb.order - 1}–{sb.order}" for sb in subbands], [[sb.name for sb in subbands]])]
     else:
-        md.append("_No reliable test with a level yet — the chart starts with the first one._")
-    # the footnote: tests the chart leaves out (unreliable, no level, or an earlier test on a plotted day)
-    unreliable, no_level = r["tests"] - r["reliable_tests"], r["no_level"]
-    same_day = r["reliable_tests"] - no_level - len(r["series"])
-    left = [f"{n} {what}" for n, what in ((unreliable, "unreliable"), (no_level, "without a level"),
-                                          (same_day, "earlier on a day with more than one test")) if n]
-    if left:
-        md += ["", f"_Not on the chart: {', '.join(left)}._"]
+        md.append("_No reliable test yet — the chart starts with the first one._")
+    unreliable = r["tests"] - r["reliable_tests"]
+    if unreliable:
+        md += ["", f"_Not on the chart: {unreliable} unreliable._"]
     if r["anki"] is not None:
         md += ["", "### Anki", ""]
         md.append(table(["Sub-band", "Cards", "Mature", f"Reviews {REVIEW_DAYS}d", "Lapses"],

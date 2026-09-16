@@ -80,7 +80,7 @@ for b in order:
 
 ```mermaid
 flowchart LR
-    T[Level test<br/>yes/no on words<br/>15 per block] -->|"hits/10 − false alarms/5<br/>pooled, recency-weighted"| L[Level 3k-b<br/>Frontier 4k-a]
+    T[Level test<br/>yes/no on words<br/>15 per block] -->|"Rasch EAP: θ from every word's b<br/>docs/det-adaptive.md"| L[θ 8.1 → level 4k-a<br/>frontier 5k-a]
     L -->|"subband == frontier"| P[Sentence pool<br/>164 sentences]
     P -->|random, no repeat in 7 days| D[Dictation<br/>edge-tts, ≤ 3 plays]
     D -->|word-level diff| R[Wrong words]
@@ -92,7 +92,7 @@ flowchart LR
 
 | Link | Exists? | How |
 |---|---|---|
-| word level → which sentence | yes | the target family is in the frontier sub-band (`learn.frontier()`) |
+| word level → which sentence | yes | the target family is in the frontier sub-band — the sub-band containing `θ` (`learn.frontier()`, [det-adaptive.md](det-adaptive.md)) |
 | word level → sentence difficulty | incidental | see the table above; nothing computes it |
 | sentence errors → my-words | yes | a wrong word that maps to an `index.csv` family → `learn.add_my_word(source = task)` |
 | sentence errors → word status or level | no | `learn.word_stats()` reads the level-test sessions only; a dictation error never changes `repeat / missed / shaky / known` or the frontier |
@@ -101,18 +101,24 @@ flowchart LR
 
 ## What would close the loop
 
-Tracked in issue #13 (priority pool) and a planned *adaptive dictation*
-issue; nothing below is built yet.
+Tracked in issue #13 (priority pool), #15 (text difficulty), #16 (adaptive
+dictation) and #17 (cloze on the scale). The foundation is built: issue #14
+put every word and the learner on one scale — a difficulty `b` per word
+(the continuous band index, `1k-a` = 0–1 … `6k-b` = 11–12) and an ability
+`θ` that the level test now estimates word by word (Rasch model,
+[docs/det-adaptive.md](det-adaptive.md)). The three items below are what
+the drills still need on top of it.
 
 1. **Drill evidence feeds word status.** A family heard and typed right on two
    different days counts as known; wrong counts as missed. `word_stats()` then
    merges test and drill evidence, and the Learn page and the frontier react
    to what is heard, not only to what is clicked.
-2. **A difficulty number per sentence**, stored in `sentences.csv` from
-   columns already in `index.csv`: highest band among its words, mean Zipf,
-   length, off-list count. Dictation can then staircase like the level test —
-   a clean sentence steps up, two or more errors step down — instead of
-   drawing at random inside one band.
+2. **A difficulty number per sentence** (`b_text`, #15), stored in
+   `sentences.csv` from the words' `b`, length and off-list count, on the
+   same scale as `θ`. Dictation can then draw sentences with `b_text` near
+   `θ` and feed its answers back into `θ` with partial credit (#16), the way
+   the level test already does for words — instead of drawing at random
+   inside one band.
 3. **Error kinds.** Same-sound substitution (*ward / word*) is listening;
    the target family wrong is vocabulary; a near miss in letters is spelling.
    Each gets its own tag in `my-words.csv` and its own follow-up drill.

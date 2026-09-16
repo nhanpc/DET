@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     bank = Bank()
     synonyms = learn.load_synonyms()
     sessions = store.load_sessions()
-    stats = learn.word_stats(sessions)
+    stats = learn.word_stats(sessions, subbands)
     today = date.today()
 
     if a.subband:
@@ -52,7 +52,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         name, done = a.subband, []
     elif a.batch:
-        _, front = learn.frontier(learn.subband_scores(sessions, subbands))
+        now = learn.current_theta(learn.theta_history(sessions, subbands, bank.b))
+        _, front = learn.frontier(now[0] if now else None, subbands)
         my_words = learn.open_my_words(learn.load_my_words())
         entries = learn.study_list(stats, front, bank.index, synonyms, my_words, a.batch, bank.examples)
         name, done = today.isoformat(), [e["family"] for e in entries if e["reason"] == "my-words"]

@@ -3,7 +3,7 @@
 sessions/<id>.json  rewritten after every answer — the full session, resumable
 results.csv         one row per finished block
 misses.csv          one row per wrong answer: real word rejected (miss) or invented word accepted (false_alarm)
-levels.csv          one row per finished session
+levels.csv          one row per finished session (theta, se since #14; older rows read back with blanks)
 mocks.csv           one row per full DET practice test, typed by hand (issue #11 fixes the schema; never written here)
 practice/attempts.csv  one row per drill attempt, every task type (issue #10; the columns are in practice/README.md)
 """
@@ -12,9 +12,11 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import asdict
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Optional
 
-from .adaptive import Block, Result, Session
+from .adaptive import RECENT_DAYS, Block, Result, Session
 from .bank import PRACTICE, VOCAB
 
 TESTS = VOCAB / "tests"
@@ -27,17 +29,28 @@ ATTEMPTS = PRACTICE / "attempts.csv"
 
 RESULTS_HEADER = ["date", "session", "subband", "n", "hits", "false_alarms", "score"]
 MISSES_HEADER = ["date", "session", "subband", "word", "kind", "ms"]
-LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable"]
+LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable", "theta", "se"]
 MOCKS_HEADER = ["date", "source", "overall", "literacy", "comprehension", "conversation", "production", "weakest", "notes"]
 ATTEMPTS_HEADER = ["date", "attempt", "task", "item", "subband", "seconds", "timed_out", "score", "self", "words",
                    "errors", "file"]
 
 
 def _append(path: Path, header: list[str], rows: list[list]) -> None:
+    """Append rows; a file whose header is a prefix of `header` (levels.csv from before #14) is rewritten once
+    with the new header, its old rows padded with blanks."""
     if not rows:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists()
+    if not new:
+        with path.open(encoding="utf-8", newline="") as f:
+            old = list(csv.reader(f))
+        if old and old[0] != header and old[0] == header[: len(old[0])]:
+            pad = len(header) - len(old[0])
+            with path.open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f, lineterminator="\n")
+                w.writerow(header)
+                w.writerows(r + [""] * pad for r in old[1:])
     with path.open("a", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
         if new:
@@ -45,11 +58,16 @@ def _append(path: Path, header: list[str], rows: list[list]) -> None:
         w.writerows(rows)
 
 
-def _read(path: Path) -> list[dict]:
+def _read(path: Path, header: Optional[list[str]] = None) -> list[dict]:
+    """Rows as dicts; a `header` column the file does not have (an old levels.csv without theta) reads as ""."""
     if not path.exists():
         return []
     with path.open(encoding="utf-8", newline="") as f:
-        return list(csv.DictReader(f))
+        rows = list(csv.DictReader(f, restval=""))
+    for k in header or ():
+        for r in rows:
+            r.setdefault(k, "")
+    return rows
 
 
 def session_dict(s: Session) -> dict:
@@ -58,9 +76,11 @@ def session_dict(s: Session) -> dict:
         "started": s.started.isoformat(timespec="seconds"),
         "finished": s.finished,
         "stop_reason": s.stop_reason,
+        "theta0": s.theta0,
         "blocks": [
             {"no": b.no, "subband": b.subband, "pos": b.pos, "hits": b.hits, "false_alarms": b.false_alarms,
-             "score": b.score if b.done else None, "items": [asdict(i) for i in b.items]}
+             "score": b.score if b.done else None, "theta_from": b.theta_from, "theta": b.theta, "se": b.se,
+             "items": [asdict(i) for i in b.items]}
             for b in s.blocks
         ],
     }
@@ -90,7 +110,8 @@ def save_block(s: Session, b: Block) -> None:
 def save_result(s: Session, r: Result) -> None:
     _append(LEVELS, LEVELS_HEADER,
             [[s.started.date().isoformat(), s.id, r.level or "", r.det_low if r.det_low is not None else "",
-              r.det_high if r.det_high is not None else "", r.blocks, r.items, r.fa_rate, int(r.reliable)]])
+              r.det_high if r.det_high is not None else "", r.blocks, r.items, r.fa_rate, int(r.reliable),
+              r.theta, r.se]])
 
 
 def load_sessions() -> list[dict]:
@@ -106,7 +127,14 @@ def load_sessions() -> list[dict]:
 
 
 def load_levels() -> list[dict]:
-    return _read(LEVELS)
+    """levels.csv rows as strings; `theta` and `se` are "" on rows written before #14."""
+    return _read(LEVELS, LEVELS_HEADER)
+
+
+def recent_words(sessions: list[dict], days: int = RECENT_DAYS, today: Optional[date] = None) -> set[str]:
+    """Every word (real or invented) shown in a session started in the last `days` days — not drawn again."""
+    since = ((today or date.today()) - timedelta(days=days)).isoformat()
+    return {i["word"] for s in sessions if s["started"][:10] >= since for b in s["blocks"] for i in b["items"]}
 
 
 def load_results() -> list[dict]:

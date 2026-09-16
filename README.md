@@ -85,11 +85,17 @@ Your vocabulary level is the highest mastered sub-band.
 
 ## Test your level
 
-A small local web app runs the yes/no test adaptively (issue #4): it starts at
-`4k-a`, shows 10 real words + 5 invented words per block, moves up a sub-band
-when the corrected score (`hits/10 − false alarms/5`) is ≥ 0.85 and down
-otherwise, and stops on the second direction change or after 6 blocks —
-45–90 words, 3–6 minutes.
+A small local web app runs the yes/no test as a computerised adaptive test
+(issues #4, #14): every word has a difficulty `b` on a continuous 0–12 band
+scale (`1k-a` = 0–1 … `6k-b` = 11–12), you have an ability `θ` on the same
+scale, and each block is 10 real words drawn from `|b − θ| ≤ 1` plus 5
+invented words. Every answer updates `θ` (Rasch model, expected-a-posteriori);
+the next block is drawn around the new `θ`; the test stops once `θ` is known
+to ± 0.35, after 6 blocks, or when the bank runs dry — usually 30–60 words,
+2–4 minutes. The **level** is the sub-band where you know 85 % of the words
+(`θ − 1.16`), the **frontier** the sub-band containing `θ`, and the DET
+estimate is read off `vocab/subbands.csv`. Formulas, anchors and the
+differences to the real DET: [docs/det-adaptive.md](docs/det-adaptive.md).
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -98,31 +104,36 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 Keys: `Y` = real word, `N` = not a word, `Space` = next block. The result
-page shows the level, the estimated DET range, the pooled score per sub-band,
-a guessing check (false-alarm rate > 25 % → unreliable) and the words you
-missed, each with a *Pin* button that keeps it on the study list (see
-*my-words* below). Everything is saved as you go, nothing to click:
-`vocab/tests/` holds `levels.csv` (one row per test), `results.csv` (per
+page shows the level, `θ ± se`, the frontier, the estimated DET score with its
+range, the path (`θ` after each block), the block scores pooled per sub-band
+(`hits/10 − false alarms/5`, the old block view), a guessing check
+(false-alarm rate > 25 % → unreliable) and the words you missed, each with a
+*Pin* button that keeps it on the study list (see *my-words* below).
+Everything is saved as you go, nothing to click: `vocab/tests/` holds
+`levels.csv` (one row per test, with `theta` and `se`), `results.csv` (per
 block), `misses.csv` (every word you got wrong, with the answer time) and
-`sessions/*.json` (every item). An unfinished test is offered as *Resume*
-the next time you open the app. Schemas: [vocab/tests/README.md](vocab/tests/README.md).
+`sessions/*.json` (every item with its `b`). An unfinished test is offered as
+*Resume* the next time you open the app. Schemas: [vocab/tests/README.md](vocab/tests/README.md).
 
 **Re-test after one week** (issue #8): once a reliable test is on file the
 start page says *Re-test `4k-a` due in 3 days* (or *due today* / *overdue by
 2 days*) — 7 days after the last reliable test, in the current frontier
-sub-band — and a *Re-test `4k-a`* button starts the staircase there instead
-of at `4k-a`'s default middle. Only the starting block changes: the walk,
-stop rules and level are the same. An unreliable test neither moves the date
-nor starts the clock.
+sub-band. Every new test starts from the last reliable `θ` as its prior (the
+CAT's way of starting at the frontier; 6.0, the middle of the scale, before
+the first test), so the *Re-test* button and *Start test* do the same thing.
+Words shown in the last 30 days are not drawn again. An unreliable test
+neither moves the date nor becomes the prior.
 
 ## What to learn
 
 *What to learn* (start page, result page, or `http://localhost:8000/#learn`)
 reads the whole history and turns it into a study list (issue #6):
 
-- **Frontier** = the next sub-band to master: the lowest sub-band you were
-  tested on and failed, at or just above your level. Scores are pooled over
-  reliable tests, each test weighing half as much as the one after it.
+- **Frontier** = the sub-band containing your ability `θ` (from the last
+  reliable test): the words you know about half of, the next ones to master.
+  The **level** is the sub-band containing `θ − 1.16`, where you know 85 %.
+  The pooled block scores per sub-band (each test weighing half as much as
+  the one after it) stay on the page as a second view.
 - **Word status**, from every time a word was shown: `repeat` (missed twice,
   still wrong), `missed`, `learned` (missed, then right — left out until
   missed again), `shaky` (right but slower than 2× that test's median),
@@ -298,6 +309,7 @@ DET/
 ├── docs/
 │   ├── det-format.md            # test structure and scoring
 │   ├── sentences.md             # where drill sentences come from; a sentence's band is its target word's
+│   ├── det-adaptive.md          # the θ / b scale: item difficulty, Rasch + EAP, level, frontier, DET anchors
 │   ├── anki.md                  # the "DET family" note type: fields, both card templates, import steps
 │   └── implementation-phases.md # build plan for this repo
 ├── data/

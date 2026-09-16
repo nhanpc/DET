@@ -14,8 +14,8 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import drills, learn, progress, store, tts
-from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, Session
+from . import drills, irt, learn, progress, store, tts
+from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, WINDOW, Session
 from .bank import VOCAB, Bank, load_subbands, read_csv
 
 STATIC = Path(__file__).parent / "static"
@@ -32,8 +32,10 @@ SENSES = read_csv(VOCAB / "senses.csv")
 EXAMPLES = {(r["family"], r["sense"]): r["example"] for r in SENSES}   # cloze id → the sentence it was cut from
 _CLOZE_POOL: list[dict] = []                              # sentence_candidates() that yield a cloze item; built on first use
 # Unfinished sessions come back from disk so a closed tab or a restart does not lose a test.
-SESSIONS: dict[str, Session] = {d["id"]: Session.restore(d, SUBBANDS, BANK)
-                                for d in store.load_sessions() if not d["finished"]}
+_SAVED = store.load_sessions()
+SESSIONS: dict[str, Session] = {d["id"]: Session.restore(d, SUBBANDS, BANK, recent=store.recent_words(_SAVED))
+                                for d in _SAVED if not d["finished"]}
+del _SAVED
 
 
 class Answer(BaseModel):
@@ -82,7 +84,7 @@ def block_view(s: Session) -> dict:
 def result_view(s: Session) -> dict:
     r = s.result()
     d = asdict(r)
-    d["misses"] = [{"word": i.word, "definition": i.definition} for i in r.misses]
+    d["misses"] = [{"word": i.word, "definition": i.definition, "b": i.b} for i in r.misses]
     d["date"] = s.started.strftime("%-d %b %Y")
     d["seconds"] = int((datetime.now() - s.started).total_seconds())
     d["stop_reason"] = s.stop_reason
@@ -94,13 +96,18 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
-def current_frontier() -> tuple[list[dict], list[dict], Optional[str], str]:
-    """(sessions, pooled scores, level, frontier) from the history on disk — the start page and the Learn
-    page need the same frontier, and the sessions are loaded once per request."""
+def current_state() -> dict:
+    """The learner now, from the history on disk: `sessions`, the θ history (`thetas`), `theta`/`se` of the last
+    reliable session (None before one), `level`, `frontier`, `det_estimate`, `det_range`. The start page, the
+    Learn page and the drills need the same frontier, and the sessions are loaded once per request."""
     sessions = store.load_sessions()
-    scores = learn.subband_scores(sessions, SUBBANDS)
-    level, front = learn.frontier(scores)
-    return sessions, scores, level, front
+    thetas = learn.theta_history(sessions, SUBBANDS, BANK.b)
+    now = learn.current_theta(thetas)
+    theta, se = now if now else (None, None)
+    level, front = learn.frontier(theta, SUBBANDS)
+    return {"sessions": sessions, "thetas": thetas, "theta": theta, "se": se, "level": level, "frontier": front,
+            "det_estimate": irt.det_estimate(theta, SUBBANDS) if now else None,
+            "det_range": list(irt.det_range(theta, se, SUBBANDS)) if now else None}
 
 
 @app.get("/api/config")
@@ -108,23 +115,29 @@ def config():
     last = store.load_levels()
     open_ = [s for s in SESSIONS.values() if not s.finished]
     resume = max(open_, key=lambda s: s.started) if open_ else None
-    _, _, _, front = current_frontier()
+    st = current_state()
     return {"real_per_block": REAL_PER_BLOCK, "pseudo_per_block": PSEUDO_PER_BLOCK, "max_blocks": MAX_BLOCKS,
+            "window": WINDOW, "se_stop": irt.SE_STOP,
             "subbands": [asdict(b) for b in SUBBANDS], "last": last[-1] if last else None,
-            "retest": learn.retest_due(last, front), "frontier": front,
+            "retest": learn.retest_due(last, st["frontier"]), "frontier": st["frontier"], "level": st["level"],
+            "theta": st["theta"], "se": st["se"], "det_estimate": st["det_estimate"], "det_range": st["det_range"],
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None,
             "tasks": drills.TASKS, "today": drills.today_counts(store.load_attempts())}
 
 
 @app.post("/api/session")
 def start(start: Optional[str] = None):
-    """`start` = sub-band of block 1 (the Re-test button passes the frontier); default: the middle of the scale."""
+    """A new test. The prior θ₀ is the θ of the last reliable session (the Re-test button and the Start button
+    alike — the CAT's "start at the frontier"), 6.0 before the first one; `start` = a sub-band name puts θ₀ in
+    the middle of that sub-band instead. Words shown in the last RECENT_DAYS days are not drawn."""
     if start is not None and start not in {b.name for b in SUBBANDS}:
         raise HTTPException(400, f"unknown sub-band {start!r}")
+    st = current_state()
     sid = datetime.now().strftime("%Y-%m-%d_%H%M%S") + "_" + uuid.uuid4().hex[:4]
-    s = Session.create(sid, SUBBANDS, BANK, start_band=start)
+    s = Session.create(sid, SUBBANDS, BANK, start_band=start, theta0=st["theta"],
+                       recent=store.recent_words(st["sessions"]))
     SESSIONS[sid] = s
-    return {"session": sid, "block": block_view(s), "max_blocks": MAX_BLOCKS}
+    return {"session": sid, "block": block_view(s), "max_blocks": MAX_BLOCKS, "theta0": s.theta0}
 
 
 @app.post("/api/session/{sid}/answer")
@@ -166,13 +179,15 @@ def learn_view(n: int) -> dict:
     dict GET /api/progress and scripts/report.py use) plus the history rows and the study list."""
     sessions = store.load_sessions()
     levels = store.load_levels()
-    r = progress.build(sessions, levels, SUBBANDS)
-    stats = learn.word_stats(sessions)
+    r = progress.build(sessions, levels, SUBBANDS, b_of=BANK.b)
+    stats = learn.word_stats(sessions, SUBBANDS)
     history, _ = learn.level_history(levels)
     my_words = learn.open_my_words(learn.load_my_words())
     counts = {**r["counts"], "my-words": len(my_words)}
     return {"sessions": r["tests"], "history": history, "trend": r["trend"], "level": r["level"],
-            "frontier": r["frontier"], "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n,
+            "frontier": r["frontier"], "theta": r["theta"], "se": r["se"], "det_estimate": r["det_estimate"],
+            "det_range": r["det_range"], "thetas": r["thetas"], "theta_series": r["theta_series"],
+            "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n,
             "words": learn.study_list(stats, r["frontier"], BANK.index, SYNONYMS, my_words, n, BANK.examples)}
 
 
@@ -181,7 +196,7 @@ def progress_page():
     """The report dict scripts/report.py renders into vocab/progress.md (no Anki), mock tests included;
     a malformed mocks.csv row is a 422 naming the line (#11), the same message the script prints."""
     try:
-        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks())
+        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b)
     except ValueError as e:
         raise HTTPException(422, f"vocab/tests/mocks.csv: {e}")
 
@@ -346,7 +361,8 @@ def drill_next(task: str, mode: str = "sentence"):
                 ("practice/speaking/prompts.csv" if task in drills.SPEAKING else "practice/writing/prompts.csv")
             raise HTTPException(404, f"no prompt for {task}: add one to {where}")
         return prompt_view(task, row, attempt)
-    sessions, _, _, front = current_frontier()
+    st = current_state()
+    sessions, front = st["sessions"], st["frontier"]
     if task == "read-and-complete" and mode == "passage":
         p = drills.pick(drills.load_passages(), recent, lambda p: p["slug"], rng)
         if p is None:
@@ -359,7 +375,7 @@ def drill_next(task: str, mode: str = "sentence"):
                 "subband": "", "source": p.get("source", ""), "pieces": item["pieces"], "blanks": item["blanks"],
                 "seconds": t["passage_seconds"]}
     if task == "read-and-complete":
-        stats = learn.word_stats(sessions)
+        stats = learn.word_stats(sessions, SUBBANDS)
         my_words = learn.open_my_words(learn.load_my_words())
         studying = {w["family"] for w in learn.study_list(stats, front, BANK.index, SYNONYMS, my_words, learn.BATCH, BANK.examples)}
         pool = [c for c in cloze_pool() if c["subband"] == front or c["family"] in studying]

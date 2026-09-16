@@ -74,16 +74,24 @@ def test_frontier_and_recency_weighting():
     assert by["4k-a"]["score"] == round((7 * .5 + 7 * .5 + 10 + 10) / (20 * .5 + 20) - (1 * .5) / (10 * .5 + 10), 4)
     assert by["4k-a"]["status"] == "mastered"                        # 0.867: the two old 7/10 blocks weigh half
     assert by["5k-a"]["status"] == "untested"
-    assert learn.frontier(learn.subband_scores([old, new], SUBBANDS)) == ("4k-a", "4k-b")
-    # the old session alone: 4k-a not mastered → frontier 4k-a
-    assert learn.frontier(learn.subband_scores([old], SUBBANDS)) == ("3k-b", "4k-a")
-    # unreliable sessions are ignored; a failed sub-band below the level is the frontier
+    # level and frontier come from θ (#14): the last reliable session's estimate, the prior chained on the one
+    # before; these fake words carry no b, so the middle of each block's sub-band stands in
+    hist = learn.theta_history([new, old], SUBBANDS)                     # order on disk must not matter
+    assert [h["id"] for h in hist] == ["old", "new"] and hist[1]["theta"] > hist[0]["theta"]
+    assert (hist[0]["level"], hist[0]["frontier"]) == ("3k-b", "4k-a")   # 7/10 and 7/10 at 4k-a, 9/10 at 3k-b
+    assert learn.frontier(learn.current_theta(hist)[0], SUBBANDS) == ("4k-b", "5k-a")   # 20/20 at 4k-a, 6/10 at 4k-b
+    assert learn.frontier(learn.current_theta(hist[:1])[0], SUBBANDS) == ("3k-b", "4k-a")
+    # an unreliable session gets a θ but never sets the level; alone it leaves no level at all
     guess = blocks_session("g", "2026-09-11T10:00:00", [("4k-a", 10, 5)], reliable=False)
-    assert learn.frontier(learn.subband_scores([guess], SUBBANDS)) == (None, "1k-a")
+    assert learn.current_theta(learn.theta_history([guess], SUBBANDS)) is None
+    assert learn.frontier(None, SUBBANDS) == (None, "1k-a")
+    h3 = learn.theta_history([old, new, guess], SUBBANDS)
+    assert not h3[-1]["reliable"] and h3[-1]["theta"] is not None and learn.current_theta(h3) == learn.current_theta(hist)
     gap = blocks_session("gap", "2026-09-12T10:00:00", [("3k-a", 6, 0), ("3k-b", 9, 0)])
-    assert learn.frontier(learn.subband_scores([gap], SUBBANDS)) == ("3k-b", "3k-a")
+    assert learn.frontier(learn.current_theta(learn.theta_history([gap], SUBBANDS))[0], SUBBANDS) == ("3k-a", "3k-b")
     weak = session("w", learner_at(0), 1, "2026-09-11T10:00:00")
-    assert learn.frontier(learn.subband_scores([weak], SUBBANDS)) == (None, "1k-b")
+    assert learn.frontier(weak["result"]["theta"], SUBBANDS) == (None, "1k-a") == (weak["result"]["level"], weak["result"]["frontier"])
+    assert learn.theta_history([weak], SUBBANDS)[0]["theta"] == weak["result"]["theta"]   # the replay is the test
 
 
 def test_study_list_order_and_export(tmp_path):
@@ -92,9 +100,8 @@ def test_study_list_order_and_export(tmp_path):
         for i in blk["items"]:
             i["ms"] = 1000
     stats = learn.word_stats([s])
-    scores = learn.subband_scores([s], SUBBANDS)
-    level, front = learn.frontier(scores)
-    assert level == NAMES[5] and front == NAMES[6]
+    level, front = learn.frontier(s["result"]["theta"], SUBBANDS)
+    assert (level, front) == (NAMES[4], NAMES[5]) == (s["result"]["level"], s["result"]["frontier"])
     shown = set(stats)
     index = fake_index(shown | {f"{front}-w{i}" for i in range(100)})
     syn = {w: ["alpha", "beta"] for w in shown}
@@ -150,7 +157,7 @@ def test_gap_and_hint():
 def test_my_words_in_study_list_and_export(tmp_path):
     s = session("s", learner_at(5), 4, "2026-09-05T10:00:00")
     stats = learn.word_stats([s])
-    _, front = learn.frontier(learn.subband_scores([s], SUBBANDS))
+    front = s["result"]["frontier"]
     index = fake_index(set(stats) | {f"{front}-w{i}" for i in range(100)})
     known = next(w.word for w in stats.values() if w.status == "known")
     my_words = [{"date": "2026-09-06", "family": "serendipity", "source": "learn", "note": "a happy accident", "done": ""},
@@ -253,19 +260,25 @@ def test_learn_api_and_export(tmp_path, monkeypatch):
         if status == "block_done":
             c.post(f"/api/session/{sid}/next")
     d = c.get("/api/learn?n=15").json()
-    assert d["sessions"] == 1 and d["counts"]["missed"] == 60 and d["level"] is None and d["frontier"] == "1k-b"
+    assert d["sessions"] == 1 and d["counts"]["missed"] == d["counts"]["seen"] >= 30 and d["level"] is None
+    assert d["frontier"] == "1k-a" and d["theta"] < 1 and d["det_estimate"] == 10 and len(d["thetas"]) == 1
     assert len(d["words"]) == 15 and all(w["reason"] == "missed" for w in d["words"])
-    assert d["words"][0]["subband"] == "1k-b"
+    assert d["words"][0]["subband"] == "1k-a"
     e = c.post("/api/learn/export?n=15").json()
     assert e["cards"] == 15 and e["file"].endswith(".txt") and (tmp_path / "decks").exists()
     deck = (tmp_path / "decks" / f"{date.today().isoformat()}.txt").read_text(encoding="utf-8").splitlines()
     assert "#notetype:DET family" in deck and all(len(l.split("\t")) == 8 for l in deck if not l.startswith("#"))
 
     # the re-test line: one reliable test → due RETEST_DAYS later, in the frontier sub-band
-    r = c.get("/api/config").json()["retest"]
-    assert r == {"subband": "1k-b", "last": date.today().isoformat(),
-                 "due": (date.today() + timedelta(days=learn.RETEST_DAYS)).isoformat(), "days": learn.RETEST_DAYS}
-    # the Re-test button: block 1 in the frontier sub-band, even though it is below the middle of the scale
+    cfg = c.get("/api/config").json()
+    assert cfg["retest"] == {"subband": "1k-a", "last": date.today().isoformat(),
+                             "due": (date.today() + timedelta(days=learn.RETEST_DAYS)).isoformat(), "days": learn.RETEST_DAYS}
+    assert cfg["theta"] == d["theta"] and cfg["level"] is None and cfg["frontier"] == "1k-a"
+    # the Re-test button: the prior is the last θ, so block 1 is composed low on the scale
+    d2 = c.post("/api/session").json()
+    assert d2["theta0"] == d["theta"] and main.SESSIONS[d2["session"]].blocks[0].subband == "1k-a"
+    del main.SESSIONS[d2["session"]]
+    # `start` = a sub-band name: block 1 in its middle, even though it is below the middle of the scale
     sid2 = c.post("/api/session?start=1k-b").json()["session"]
     for _ in range(15):
         c.post(f"/api/session/{sid2}/answer", json={"yes": False, "ms": 800})

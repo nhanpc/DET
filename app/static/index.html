@@ -173,9 +173,9 @@
     <p>You will see one word at a time. Decide whether it is a real English word. Some words are invented — say <strong>No</strong> to those.</p>
   </div>
   <div class="facts">
-    <div class="fact"><b>45–90 words</b><span class="note">in blocks of 15</span></div>
-    <div class="fact"><b>3–6 minutes</b><span class="note">about 5 seconds a word</span></div>
-    <div class="fact"><b>Adaptive</b><span class="note">starts mid-level, moves up or down</span></div>
+    <div class="fact"><b>30–90 words</b><span class="note">in blocks of 15</span></div>
+    <div class="fact"><b>2–6 minutes</b><span class="note">about 5 seconds a word</span></div>
+    <div class="fact"><b>Adaptive</b><span class="note">every answer moves your ability estimate θ; the next block is drawn around it</span></div>
   </div>
   <div class="keys">
     <div><span class="key">Y</span><span>Real word</span></div>
@@ -229,18 +229,20 @@
       <div class="eyebrow">Your level · <span id="r-date"></span></div>
       <div class="big"><b id="r-level"></b><span id="r-cefr"></span></div>
       <div class="det">Estimated DET <b id="r-det"></b></div>
+      <div class="det">Ability θ <b id="r-theta"></b> · frontier <b id="r-frontier"></b></div>
     </div>
     <div class="rel">
       <div class="pill" id="r-pill"><i></i><span id="r-rel"></span></div>
       <div class="note" id="r-meta"></div>
     </div>
   </div>
-  <div class="section"><div class="eyebrow">Path</div><div class="path" id="r-path"></div></div>
+  <div class="section"><div class="eyebrow">Path · θ after each block</div><div class="path" id="r-path"></div>
+    <div class="note">Level = the sub-band where you know 85 % of the words (θ − 1.16); frontier = the sub-band containing θ, where you know about half. The test stops once θ is known to ± 0.35.</div></div>
   <div class="cols">
     <div class="section">
       <div class="eyebrow">Pooled scores</div>
       <table><thead><tr><th>Sub-band</th><th>Hits</th><th>False alarms</th><th>Score</th><th></th></tr></thead><tbody id="r-pooled"></tbody></table>
-      <div class="note">Score = hits ÷ real words − false alarms ÷ invented words. Mastered at 0.85.</div>
+      <div class="note">The block view: score = hits ÷ real words − false alarms ÷ invented words, mastered at 0.85. Each block is drawn around θ at that moment and labelled with its sub-band.</div>
     </div>
     <div class="section">
       <div class="eyebrow">Words you missed · <span id="r-miss-count">0</span></div>
@@ -260,19 +262,20 @@
       <div class="eyebrow">What to learn · <span id="l-tests"></span></div>
       <div class="big"><b id="l-frontier"></b><span id="l-level"></span></div>
       <div class="det" id="l-why"></div>
+      <div class="det" id="l-theta"></div>
     </div>
     <div class="rel">
       <div class="tags" id="l-counts"></div>
       <div class="note">From every word you were shown, all tests together</div>
     </div>
   </div>
-  <div class="section"><div class="eyebrow">Level over time</div><div class="history" id="l-history"></div>
+  <div class="section"><div class="eyebrow">Ability θ over time · one point per test</div><div class="history" id="l-history"></div>
     <svg class="chart" id="l-chart" viewBox="0 0 560 120" preserveAspectRatio="none" hidden></svg></div>
   <div class="cols">
     <div class="section">
       <div class="eyebrow">Sub-bands</div>
       <table><thead><tr><th>Sub-band</th><th>Blocks</th><th>Score</th><th></th></tr></thead><tbody id="l-subbands"></tbody></table>
-      <div class="note">Pooled over reliable tests; each test counts half as much as the one after it. Mastered at 0.85.</div>
+      <div class="note">The block view, pooled over reliable tests; each test counts half as much as the one after it. Mastered at 0.85. The level and the frontier above come from θ, not from this table.</div>
     </div>
     <div class="section">
       <div class="eyebrow">Study list</div>
@@ -332,7 +335,8 @@
     subbands = c.subbands;
     $('max-blocks').textContent = maxBlocks;
     if (c.last) {
-      $('last').textContent = `Last result: ${c.last.level || 'below 1k-b'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)');
+      $('last').textContent = `Last result: ${c.last.level || 'no level'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)') +
+        (c.theta == null ? '' : ` · θ ${c.theta.toFixed(2)} ± ${c.se.toFixed(2)} · DET ≈ ${c.det_estimate} (${c.det_range[0]}–${c.det_range[1]})`);
       $('last').hidden = false;
     }
     $('btn-learn').hidden = !c.last;
@@ -340,7 +344,7 @@
     $('retest').hidden = $('btn-retest').hidden = !retest;
     if (retest) {
       const when = retest.days > 0 ? `due in ${retest.days} day${retest.days === 1 ? '' : 's'}` : retest.days === 0 ? 'due today' : `overdue by ${-retest.days} day${retest.days === -1 ? '' : 's'}`;
-      $('retest').innerHTML = `Re-test <b>${retest.subband}</b> ${when} (${retest.days > 0 ? retest.due : 'last reliable test ' + retest.last})`;
+      $('retest').innerHTML = `Re-test <b>${retest.subband}</b> ${when} (${retest.days > 0 ? retest.due : 'last reliable test ' + retest.last}) — starts from your last θ`;
       $('btn-retest').textContent = `Re-test ${retest.subband}`;
     }
     renderDrills(c.tasks, c.today, c.frontier);
@@ -400,13 +404,15 @@
     const r = await api(`/api/session/${sid}/result`);
     $('r-date').textContent = r.date;
     $('r-level').textContent = r.level || '—';
-    $('r-cefr').textContent = r.level ? r.cefr : `below ${r.lowest_failed}`;
-    $('r-det').textContent = r.level ? (r.det_high >= 160 ? `${r.det_low}+` : `${r.det_low}–${r.det_high}`) : '—';
+    $('r-cefr').textContent = r.level ? r.cefr : `below ${r.lowest_failed || r.frontier}`;
+    $('r-det').textContent = `${r.det_estimate} (${r.det_range[0]}–${r.det_range[1]})` + (r.level ? ` · ${r.cefr} ${detRange(r.det_low, r.det_high)}` : '');
+    $('r-theta').textContent = `${r.theta.toFixed(2)} ± ${r.se.toFixed(2)}`;
+    $('r-frontier').textContent = r.frontier;
     $('r-pill').className = 'pill ' + (r.reliable ? 'ok' : 'bad');
     $('r-rel').textContent = r.reliable ? 'Reliable' : 'Unreliable — please retake';
-    $('r-meta').textContent = `${r.items} words · ${fmt(r.seconds)} · false alarms ${r.false_alarms}/${r.n_pseudo}`;
+    $('r-meta').textContent = `${r.items} words · ${fmt(r.seconds)} · false alarms ${r.false_alarms}/${r.n_pseudo} · stopped: ${r.stop_reason}`;
     $('r-path').innerHTML = r.path.map((p, i) =>
-      `<span class="chip"><i style="background:${p.mastered ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${p.subband}</span><small>${p.score.toFixed(2)}</small></span>` +
+      `<span class="chip"><i style="background:${p.mastered ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${p.subband}</span><small>${p.score.toFixed(2)} · θ ${p.theta.toFixed(2)} ± ${p.se.toFixed(2)}</small></span>` +
       (i < r.path.length - 1 ? '<span class="arrow">→</span>' : '')).join('');
     $('r-pooled').innerHTML = r.pooled.map(p =>
       `<tr><td class="mono">${p.subband}</td><td>${p.hits}/${p.n_real}</td><td>${p.false_alarms}/${p.n_pseudo}</td><td>${p.score.toFixed(2)}</td><td class="${p.mastered ? 'ok' : 'bad'}">${p.mastered ? 'mastered' : 'not yet'}</td></tr>`).join('');
@@ -436,12 +442,13 @@
     $('l-level').textContent = d.level ? `level ${d.level}` : 'no level yet';
     const trend = { up: 'going up', down: 'going down', flat: 'holding' }[d.trend];
     $('l-why').textContent = `Next sub-band to master${trend ? ' · ' + trend : ''}`;
+    $('l-theta').textContent = d.theta == null ? 'No reliable test yet' : `θ ${d.theta.toFixed(2)} ± ${d.se.toFixed(2)} · DET ≈ ${d.det_estimate} (${d.det_range[0]}–${d.det_range[1]})`;
     $('l-counts').innerHTML = ['repeat', 'my-words', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
       .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`;
-    $('l-history').innerHTML = d.history.map(h =>
-      `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">${h.level || '—'}</span><small>${h.date} · DET ${detRange(h.det_low, h.det_high)}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
+    $('l-history').innerHTML = d.thetas.map(h =>
+      `<span class="chip"><i style="background:${h.reliable ? 'var(--green)' : 'var(--red)'}"></i><span class="mono">θ ${h.theta.toFixed(2)}</span><small>${h.started.slice(0, 16).replace('T', ' ')} · ${h.frontier}${h.level ? ', level ' + h.level : ', no level'} · DET ≈ ${h.det}${h.reliable ? '' : ' · unreliable'}</small></span>`).join('')
       || '<span class="note">No finished tests yet.</span>';
-    levelChart(d.series);
+    thetaChart(d.theta_series);
     $('l-subbands').innerHTML = d.subbands.filter(s => s.blocks).map(s =>
       `<tr><td class="mono">${s.subband}${s.subband === d.frontier ? ' ←' : ''}</td><td>${s.blocks}</td><td>${s.score.toFixed(2)}</td><td class="${s.status === 'mastered' ? 'ok' : 'bad'}">${s.status}</td></tr>`).join('');
     $('l-words').innerHTML = d.words.length ? d.words.map((w, i) =>
@@ -453,21 +460,24 @@
     $('l-exported').textContent = '';
     show('learn');
   }
-  // One point per day (the day's last reliable test with a level), y = sub-band index; the dashed line is 6k-a = C1.
-  function levelChart(series) {
+  // One point per reliable test: y = θ on the band index 0–12 with its ± se bar; gridlines at the bottom of the
+  // scale, the goal (the first sub-band at DET 120, dashed) and the top, labelled with the sub-band that starts there.
+  function thetaChart(series) {
     const svg = $('l-chart');
     svg.hidden = series.length < 2;
     if (svg.hidden) return;
-    const n = subbands.length, goal = subbands.findIndex(b => b.det_low >= 120) + 1;
+    const n = subbands.length, goal = subbands.findIndex(b => b.det_low >= 120);
     const W = 560, H = 120, L = 34, R = 10, T = 8, B = 20;
-    const x = (i) => L + i * (W - L - R) / (series.length - 1), y = (o) => T + (n - o) * (H - T - B) / (n - 1);
-    const label = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    svg.innerHTML = [1, goal, n].filter(o => o > 0).map(o =>
+    const x = (i) => L + i * (W - L - R) / (series.length - 1), y = (t) => T + (n - Math.min(n, Math.max(0, t))) * (H - T - B) / n;
+    const label = (p) => new Date(p.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) +
+      (series.filter(q => q.date === p.date).length > 1 ? ' ' + p.started.slice(11, 16) : '');
+    svg.innerHTML = [0, goal, n].filter(o => o >= 0).map(o =>
         `<line x1="${L}" x2="${W - R}" y1="${y(o)}" y2="${y(o)}"${o === goal ? ' class="goal"' : ''}/>` +
-        `<text x="${L - 6}" y="${y(o) + 3}" text-anchor="end">${subbands[o - 1].name}</text>`).join('') +
-      `<polyline points="${series.map((p, i) => `${x(i)},${y(p.order)}`).join(' ')}"/>` +
-      series.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.order)}" r="3"><title>${p.date} · ${p.level}</title></circle>` +
-        `<text x="${x(i)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${label(p.date)}</text>`).join('');
+        `<text x="${L - 6}" y="${y(o) + 3}" text-anchor="end">${o === n ? n : subbands[o].name}</text>`).join('') +
+      `<polyline points="${series.map((p, i) => `${x(i)},${y(p.theta)}`).join(' ')}"/>` +
+      series.map((p, i) => `<line x1="${x(i)}" x2="${x(i)}" y1="${y(p.theta - p.se)}" y2="${y(p.theta + p.se)}" style="stroke:var(--accent)"/>` +
+        `<circle cx="${x(i)}" cy="${y(p.theta)}" r="3"><title>${p.started.slice(0, 16).replace('T', ' ')} · θ ${p.theta.toFixed(2)} ± ${p.se.toFixed(2)} · ${p.frontier}</title></circle>` +
+        `<text x="${x(i)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${label(p)}</text>`).join('');
   }
   async function exportDeck() {
     const d = await api(`/api/learn/export?n=${$('l-batch').value}`, { method: 'POST' });
@@ -762,7 +772,7 @@
   // ---- wiring
   $('drills').addEventListener('click', (e) => { const b = e.target.closest('button.drill-btn'); if (b) openDrill(b.dataset.task); });
   $('btn-start').onclick = () => start();
-  $('btn-retest').onclick = () => start(retest && retest.subband);
+  $('btn-retest').onclick = () => start();                     // the prior is the last θ: block 1 sits at the frontier
   $('r-misses').addEventListener('click', (e) => { const b = e.target.closest('button.pin'); if (b) pin(b); });
   $('l-add').addEventListener('submit', addWord);
   $('btn-yes').onclick = () => answer(true);

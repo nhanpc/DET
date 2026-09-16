@@ -47,14 +47,21 @@ def test_full_session_writes_files_as_it_goes(files):
             words |= set(block["words"])
 
     r = c.get(f"/api/session/{sid}/result").json()
-    assert r["level"] is None and r["reliable"] and r["blocks"] == 6
-    assert len(r["misses"]) == 60
-    assert json.loads(session_file.read_text())["result"]["misses"] == [m["word"] for m in r["misses"]]
+    n = r["blocks"]
+    assert r["level"] is None and r["reliable"] and 3 <= n <= 6 and r["stop_reason"] == "se < 0.35"
+    assert len(r["misses"]) == 10 * n and all(0 < m["b"] <= 12 for m in r["misses"])
+    assert r["theta"] < 1 and r["se"] < 0.35 and r["frontier"] == "1k-a" and r["det_estimate"] == 10
+    assert r["det_range"] == [10, 10] and [p["subband"] for p in r["path"]][0] == "4k-a"
+    assert all(p["theta"] is not None and p["se"] is not None for p in r["path"])
+    saved = json.loads(session_file.read_text())
+    assert saved["result"]["misses"] == [m["word"] for m in r["misses"]] and saved["theta0"] == 6.0
+    assert saved["blocks"][0]["theta_from"] == 6.0 and saved["blocks"][-1]["theta"] == r["theta"]
 
     lv = rows(files / "levels.csv")
-    assert len(lv) == 1 and lv[0]["session"] == sid and lv[0]["reliable"] == "1" and lv[0]["items"] == "90"
+    assert len(lv) == 1 and lv[0]["session"] == sid and lv[0]["reliable"] == "1" and lv[0]["items"] == str(15 * n)
+    assert float(lv[0]["theta"]) == r["theta"] and float(lv[0]["se"]) == r["se"] and lv[0]["level"] == ""
     ms = rows(files / "misses.csv")
-    assert len(ms) == 60 and {m["kind"] for m in ms} == {"miss"} and ms[0]["ms"] == "900"
+    assert len(ms) == 10 * n and {m["kind"] for m in ms} == {"miss"} and ms[0]["ms"] == "900"
     assert [m["word"] for m in ms] == [m["word"] for m in r["misses"]]
     assert c.get("/api/config").json()["resume"] is None
 
@@ -79,7 +86,7 @@ def test_unfinished_session_is_offered_for_resume_and_restored_from_disk(files):
     saved = store.load_sessions()
     assert [s["id"] for s in saved] == [sid] and not saved[0]["finished"]
     back = Session.restore(saved[0], main.SUBBANDS, main.BANK)
-    assert back.band_idx == live.band_idx and back.used == live.used and back.last_dir == live.last_dir
+    assert (back.theta, back.se) == (live.theta, live.se) and back.used == live.used and back.theta0 == live.theta0
     assert back.block.pos == 3 and [i.word for i in back.block.items] == block["words"]
     assert [i.answer for i in back.block.items[:3]] == [False] * 3
     assert store.session_dict(back) == store.session_dict(live)
