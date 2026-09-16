@@ -20,6 +20,10 @@ every word you got wrong or lacked lands in `vocab/my-words.csv` through
 | `read-then-write` | write on a prompt | `writing/prompts.csv` | 5 min, 50 words | self-rating, words |
 | `interactive-writing` | part 1, then the row's `follow_up` on what you wrote | `writing/prompts.csv` | 5 min + 3 min, 50 words | self-rating, words |
 
+A sentence's `subband` is the band of the word it was fetched for, nothing
+more — what that does and does not tell you is measured in
+[docs/sentences.md](../docs/sentences.md).
+
 Read and Select is not drilled again: the weekly level test is that task.
 Interactive Reading / Listening and the Samples: notes only, in
 [interactive/README.md](interactive/README.md).

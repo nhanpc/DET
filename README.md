@@ -210,7 +210,8 @@ values in [docs/det-format.md](docs/det-format.md).
   `practice/read-and-complete/passages/`, 3 minutes, first sentence intact.
   Scored per blank; a sentence is not shown twice in a week.
 - **Listen and Type** (`listen-and-type`): a 6–14-word example of the frontier
-  sub-band read by an edge-tts neural voice (four accents; the MP3 is cached
+  sub-band (the band is the target word's, not the sentence's —
+  [docs/sentences.md](docs/sentences.md)) read by an edge-tts neural voice (four accents; the MP3 is cached
   in `practice/listen-and-type/audio/`, so a sentence needs the internet
   once), at most 3 plays, 1 minute; scored by word-level edit distance and
   shown as a diff.
@@ -296,6 +297,7 @@ DET/
 ├── README.md
 ├── docs/
 │   ├── det-format.md            # test structure and scoring
+│   ├── sentences.md             # where drill sentences come from; a sentence's band is its target word's
 │   ├── anki.md                  # the "DET family" note type: fields, both card templates, import steps
 │   └── implementation-phases.md # build plan for this repo
 ├── data/
