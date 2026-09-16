@@ -5,7 +5,8 @@ results.csv         one row per finished block
 misses.csv          one row per wrong answer: real word rejected (miss) or invented word accepted (false_alarm)
 levels.csv          one row per finished session (theta, se since #14; older rows read back with blanks)
 mocks.csv           one row per full DET practice test, typed by hand (issue #11 fixes the schema; never written here)
-practice/attempts.csv  one row per drill attempt, every task type (issue #10; the columns are in practice/README.md)
+practice/attempts.csv  one row per drill attempt, every task type (issue #10; the columns are in practice/README.md;
+                       theta, b, events since #16 — older rows read back with blanks)
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ MISSES_HEADER = ["date", "session", "subband", "word", "kind", "ms"]
 LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable", "theta", "se"]
 MOCKS_HEADER = ["date", "source", "overall", "literacy", "comprehension", "conversation", "production", "weakest", "notes"]
 ATTEMPTS_HEADER = ["date", "attempt", "task", "item", "subband", "seconds", "timed_out", "score", "self", "words",
-                   "errors", "file"]
+                   "errors", "file", "theta", "b", "events"]          # theta, b, events since #16 (blank before)
 
 
 def _append(path: Path, header: list[str], rows: list[list]) -> None:
@@ -154,4 +155,5 @@ def append_attempt(row: dict) -> None:
 
 
 def load_attempts() -> list[dict]:
-    return _read(ATTEMPTS)
+    """attempts.csv rows as strings; `theta`, `b` and `events` are "" on rows written before #16."""
+    return _read(ATTEMPTS, ATTEMPTS_HEADER)

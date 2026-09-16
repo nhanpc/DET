@@ -18,6 +18,7 @@ from typing import Optional
 
 from . import irt, learn
 from .bank import Subband
+from .drills import EVENT_KINDS, parse_events
 
 START = "<!-- generated:start -->"
 END = "<!-- generated:end -->"
@@ -38,6 +39,7 @@ OFFICIAL = "official"       # `source` of a certified test: shown in bold, gates
 SCALE = range(10, 161, 5)   # the DET scale: 10–160 in steps of 5
 SUBSCORE_DAYS = 28          # subscores older than this (before the latest mock) no longer pick the focus
 MOCK_DAYS = 14              # no mock within this many days before `generated` → mock overdue
+KIND_DAYS = 14              # the *Listening* line counts the dictation error kinds of the last two weeks (#16)
 
 
 def det_range(low: Optional[int], high: Optional[int]) -> str:
@@ -173,16 +175,37 @@ def mocks_report(mocks: list[dict], history: list[dict], today: date) -> dict:
             "overdue": overdue, "focus": mock_focus(rows), "verdict": verdict, "gap": gap}
 
 
+def listening(attempts: list[dict], today: date, task: str = "listen-and-type", days: int = KIND_DAYS) -> dict:
+    """The dictation side of the report (#16): `attempts` = rows of `task`, `kinds` = the error kinds of the last
+    `days` days as counts (EVENT_KINDS minus hit), `days`."""
+    rows = [r for r in attempts if r.get("task") == task]
+    since = (today - timedelta(days=days)).isoformat()
+    kinds = {k: 0 for k in EVENT_KINDS if k != "hit"}
+    for r in rows:
+        if r["date"] >= since:
+            for _, kind in parse_events(r.get("events", "")):
+                if kind in kinds:
+                    kinds[kind] += 1
+    return {"attempts": len(rows), "kinds": kinds, "days": days}
+
+
 def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None,
-          mocks: Optional[list[dict]] = None, b_of: Optional[dict[str, float]] = None) -> dict:
-    """The report: θ, level and frontier from the last reliable session (learn.theta_history on `sessions`,
-    word difficulties from `b_of` = Bank.b, else the middle of each block's sub-band), the pooled sub-band rows,
-    the word-status counts, the chart series and the mock tests (mocks_report() on `mocks`, the
-    store.load_mocks() rows; None = no rows). `anki` stays None; scripts/report.py fills it from anki_stats()."""
+          mocks: Optional[list[dict]] = None, b_of: Optional[dict[str, float]] = None,
+          attempts: Optional[list[dict]] = None, index: Optional[dict[str, dict]] = None) -> dict:
+    """The report: `theta_test` from the last reliable session (learn.theta_history on `sessions`, word
+    difficulties from `b_of` = Bank.b, else the middle of each block's sub-band), `theta`/`se` = that posterior
+    updated by the scored drill attempts since it (`attempts` = practice/attempts.csv rows, #16) — level,
+    frontier and the DET estimate come from it — `theta_listen`/`se_listen` from the dictation attempts only,
+    the pooled sub-band rows, the word-status counts (drill events merged, `index` for their sub-band), the
+    listening line, the chart series and the mock tests (mocks_report() on `mocks`, the store.load_mocks() rows;
+    None = no rows). `anki` stays None; scripts/report.py fills it from anki_stats()."""
     by = {sb.name: sb for sb in subbands}
+    attempts = attempts or []
     scores = learn.subband_scores(sessions, subbands)
     thetas = learn.theta_history(sessions, subbands, b_of)
-    now = learn.current_theta(thetas)
+    test = learn.current_theta(thetas)
+    now = learn.drill_theta(thetas, attempts)
+    listen = learn.drill_theta(thetas, attempts, ("listen-and-type",))
     theta, se = now if now else (None, None)
     level, front = learn.frontier(theta, subbands)
     history, trend = learn.level_history(levels)
@@ -197,11 +220,13 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
             "level": level, "frontier": front, "last_level": reliable[-1]["level"] if reliable else None,
             "cefr": sb.cefr if sb else None, "det_low": sb.det_low if sb else None,
             "det_high": sb.det_high if sb else None, "trend": trend,
-            "theta": theta, "se": se,
+            "theta": theta, "se": se, "theta_test": test[0] if test else None,
+            "theta_listen": listen[0] if listen else None, "se_listen": listen[1] if listen else None,
             "det_estimate": irt.det_estimate(theta, subbands) if now else None,
             "det_range": list(irt.det_range(theta, se, subbands)) if now else None,
             "thetas": thetas, "theta_series": theta_series(thetas),
-            "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions, subbands)),
+            "subbands": rows, "counts": learn.status_counts(learn.word_stats(sessions, subbands, attempts, index)),
+            "listening": listening(attempts, today),
             "series": level_series(history, by), "anki": None,
             "mocks": mocks_report(mocks or [], history, today)}
 
@@ -224,6 +249,21 @@ def now_line(r: dict) -> str:
     parts.append(f"{r['tests']} test{'s' if r['tests'] != 1 else ''} ({r['reliable_tests']} reliable)")
     if r["last_level"] != r["level"]:
         parts.append(f"last test {r['last_level'] or 'no level'}")
+    return " · ".join(parts)
+
+
+def listening_line(r: dict) -> str:
+    """`θ_listen = 7.90 ± 0.33 (vocabulary θ = 8.13) · 12 dictations · errors in the last 14 days: hearing 3 ·
+    spelling 1 · form 0 · vocabulary 2`; before the first dictation `_No dictation yet._`; without a reliable
+    test the θ part is left out."""
+    li = r["listening"]
+    if not li["attempts"]:
+        return "_No dictation yet — the Listen and Type drill feeds this line._"
+    parts = []
+    if r["theta_listen"] is not None:
+        parts.append(f"θ_listen = {r['theta_listen']:.2f} ± {r['se_listen']:.2f} (vocabulary θ = {r['theta_test']:.2f})")
+    parts.append(f"{li['attempts']} dictation{'s' if li['attempts'] != 1 else ''}")
+    parts.append(f"errors in the last {li['days']} days: " + " · ".join(f"{k} {n}" for k, n in li["kinds"].items()))
     return " · ".join(parts)
 
 
@@ -300,8 +340,8 @@ def mock_lines(m: dict, frontier: str) -> list[str]:
 
 
 def render_markdown(r: dict, subbands: list[Subband]) -> str:
-    """Everything between the markers, HEADING first, in the order fixed in #9, then the *Mock tests* section
-    of #11 after **Anki**. Ends with a newline."""
+    """Everything between the markers, HEADING first, in the order fixed in #9 (*Listening*, #16, after
+    *Words*), then the *Mock tests* section of #11 after **Anki**. Ends with a newline."""
     md = [HEADING, GENERATED.format(date=r["generated"]), "", "### Now", "", now_line(r), "", "### Sub-bands", ""]
     pct = lambda x: f"{100 * x:.0f} %" if x is not None else DASH                          # noqa: E731
     md.append(table(["Sub-band", "CEFR", "DET", "Blocks", "Known", "Score", "Status"],
@@ -310,6 +350,7 @@ def render_markdown(r: dict, subbands: list[Subband]) -> str:
                       s["status"] + (" ← frontier" if s["subband"] == r["frontier"] else "")] for s in r["subbands"]]))
     c = r["counts"]
     md += ["", "### Words", "", " · ".join(f"{k} {c[k]}" for k in learn.STATUSES) + f" ({c['seen']} seen)",
+           "", "### Listening", "", listening_line(r),
            "", "### Ability over time", ""]
     if r["thetas"]:
         md += theta_lines(r["thetas"]) + [""]

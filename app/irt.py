@@ -6,7 +6,8 @@ Model            Rasch, P(θ, b) = 1 / (1 + exp(−A · (θ − b))), A = 1.5 pe
                  answered right ≈ 82 % of the time, and P crosses the old mastery line 0.85 at θ − b = MASTERY_GAP.
 Ability          θ by expected-a-posteriori on GRID with a normal prior N(θ₀, PRIOR_SD²); eap() returns (θ, se).
                  A response is (b, score) with score in [0, 1]: 1 = right, 0 = wrong, a fraction enters the
-                 likelihood as P^s · (1 − P)^(1 − s) (the partial-credit drills of #16 and #17).
+                 likelihood as P^s · (1 − P)^(1 − s) (the partial-credit drills of #16 and #17); snap() turns a
+                 drill credit ≥ RIGHT into 1 and ≤ WRONG into 0 before it enters.
 Level            the sub-band containing θ − MASTERY_GAP (where the learner knows 85 %); frontier = the one containing θ.
 DET estimate     piece-wise linear interpolation of the mastery point θ − MASTERY_GAP on the det_low / det_high
                  anchors of vocab/subbands.csv, so the estimate always falls inside the level's own range.
@@ -28,6 +29,7 @@ GRID = [round(GRID_LO + i * GRID_STEP, 2) for i in range(round((GRID_HI - GRID_L
 MASTERY = 0.85                # the old block rule's mastery line, kept as the definition of "level"
 MASTERY_GAP = math.log(MASTERY / (1 - MASTERY)) / A          # 1.156: θ − b where P = 0.85
 SE_STOP = 0.35                # the test stops once the posterior sd is below this
+RIGHT, WRONG = 0.95, 0.2      # a drill credit at or above / below these enters the posterior as 1 / 0 (snap())
 
 
 # ---- items ------------------------------------------------------------------------------------------------
@@ -83,6 +85,14 @@ class Posterior:
         theta = sum(t * x for t, x in zip(GRID, w)) / z
         var = sum((t - theta) ** 2 * x for t, x in zip(GRID, w)) / z
         return round(theta, 4), round(math.sqrt(var), 4)
+
+
+def snap(credit: float, right: float = RIGHT, wrong: float = WRONG) -> float:
+    """The response a partial credit enters the likelihood with: 1 at or above `right`, 0 at or below `wrong`,
+    itself in between — so a one-letter slip is a right answer and a wild guess a wrong one (issue #16)."""
+    if not 0.0 <= credit <= 1.0:
+        raise ValueError(f"credit {credit} outside [0, 1]")
+    return 1.0 if credit >= right else 0.0 if credit <= wrong else credit
 
 
 def eap(responses: Iterable[tuple[float, float]], mean: float = THETA0, sd: float = PRIOR_SD) -> tuple[float, float]:

@@ -57,7 +57,9 @@ def main(argv: list[str] | None = None) -> int:
         if problems:
             return 1
     try:
-        report = progress.build(sessions, levels, subbands, mocks=store.load_mocks(), b_of=Bank().b)
+        bank = Bank()
+        report = progress.build(sessions, levels, subbands, mocks=store.load_mocks(), b_of=bank.b,
+                                attempts=store.load_attempts(), index=bank.index)
     except ValueError as e:
         path = store.MOCKS.relative_to(ROOT) if store.MOCKS.is_relative_to(ROOT) else store.MOCKS
         print(f"{path}: {e} — nothing written", file=sys.stderr)

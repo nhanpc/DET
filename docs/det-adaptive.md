@@ -192,6 +192,39 @@ weighing in); the scale says `4k-a` / `5k-a` from the last session, with the
 earlier ones only as its prior. Both are defensible; the scale's reading is
 the one the drills now build on.
 
+## Dictation on the scale (issue #16)
+
+Listen and Type is the first drill that feeds the same `θ`. The code is
+`app/drills.py` (`credit`, `dictation_events`, `in_window`), `app/phon.py`
+(Metaphone) and `learn.drill_theta()`; the drill's own page is
+[practice/README.md](../practice/README.md) § *Listen and Type*.
+
+```mermaid
+flowchart LR
+    T["last reliable test<br/>θ, se"] --> D["drill_theta<br/>prior N(θ, se²)"]
+    A[("attempts.csv<br/>theta, b, score")] -->|"rows since the test<br/>with a b"| D
+    D --> N["θ now · level · frontier · DET"]
+    D -->|"listen-and-type rows only"| L["θ_listen"]
+    N --> W["window |b − θ| ≤ 0.6<br/>widened by 0.3 until 10"] --> S[sentence b]
+    S --> C["credit = 1 − edits ÷ length"] --> K["snap: ≥ 0.95 → 1<br/>≤ 0.2 → 0"] --> A
+```
+
+| | Definition |
+|---|---|
+| **selection** | sentences with `\|b − θ\| ≤ 0.6` (`b = b_text + b_adjust`, [sentences.md](sentences.md)), the window widened by 0.3 until it holds ten; frontier sub-band before the first reliable test |
+| **credit** | `1 − d / max(len(reference), len(typed))`, `d` = character-level Levenshtein on the normalised strings — the DET describes dictation scoring as an edit-distance similarity, not all-or-nothing |
+| **response** | the credit `s` enters the posterior as `P^s · (1 − P)^(1 − s)` — the fractional form of the Rasch likelihood, a simplification of the DET's polytomous model. `irt.snap()` first turns `s ≥ 0.95` into 1 and `s ≤ 0.2` into 0, so a one-letter slip is a right answer and a wild guess a wrong one |
+| **θ now** | the last reliable test's posterior, taken as `N(θ, se²)`, updated by every scored drill row since it that carries a `b` (`learn.drill_theta`); level, frontier and the DET estimate follow it, and it is the next test's prior |
+| **θ_listen** | the same update from the dictation rows only — the report shows it next to the test's θ, so the gap between what is recognised and what is heard is visible |
+| **before a test** | `θ` is `None`: the drill draws from the frontier sub-band and writes a blank `theta`; nothing moves until a reliable test exists |
+
+Every row of `attempts.csv` keeps `theta` (before the attempt) and `b`, so
+the item refit of #15 (`textdiff.refit_bank()`, run after every answer) has
+its `(θ, credit)` pairs, and the per-word `events` (`hit`, `form`,
+`hearing`, `spelling`, `vocabulary`) feed the word statuses — a `vocabulary`
+miss is a "no", two hit days a "yes"; the other kinds are dictation matters
+and never change a word's status.
+
 ## How this differs from the real DET
 
 - **`b` is predicted from rank, not calibrated on responses.** Duolingo fits
@@ -204,10 +237,12 @@ the one the drills now build on.
 - **One learner.** `A = 1.5` and the anchors are choices, not estimates; there
   is no population to fit them on. The DET estimate is the `vocab/subbands.csv`
   guess spread over the scale, not a prediction of a score.
-- **Yes/no on isolated words only.** The DET's vocabulary items (Read and
-  Select, Listen and Select) are the same format, but its `θ` is fed by every
-  task type through one model. The dictation (#16) and cloze (#17) drills are
-  the next feeders here, with fractional credit.
+- **Yes/no on isolated words, plus dictation.** The DET's vocabulary items
+  (Read and Select, Listen and Select) are the same format, but its `θ` is fed
+  by every task type through one model. Here the level test and the dictation
+  drill (#16, fractional credit) feed one `θ`; the cloze drills (#17) are
+  next. The DET scores dictation with a polytomous model; `P^s · (1 − P)^(1 − s)`
+  is the one-parameter stand-in.
 - **Random inside the window, not "closest to θ".** The DET picks the item
   with maximum information; this test draws 10 at random from `|b − θ| ≤ 1`
   so that a block is a mixed bag and the same words do not come back at the
@@ -222,5 +257,6 @@ the one the drills now build on.
 | `b` per word | `Bank.b[family]`, `RealWord.b`; each shown item carries `b` in `sessions/<id>.json` |
 | `θ₀`, `θ`, `se` | `sessions/<id>.json`: `theta0`, per block `theta_from`, `theta`, `se`; `result.theta`, `result.se`, `result.frontier`, `result.det_estimate`, `result.det_range` |
 | per session | `levels.csv` columns `theta`, `se` (blank on rows from before #14; the header is upgraded on the next write) |
-| now | `GET /api/config` and `GET /api/progress`: `theta`, `se`, `level`, `frontier`, `det_estimate`, `det_range`; `/api/progress` also `thetas` (one row per session) and `theta_series` (the reliable ones) |
-| report | `vocab/progress.md` § *Ability over time*: one line per session and a chart of `θ` per test |
+| now | `GET /api/config` and `GET /api/progress`: `theta`, `se` (test + drills), `theta_test`, `theta_listen`, `se_listen`, `level`, `frontier`, `det_estimate`, `det_range`; `/api/progress` also `thetas` (one row per session), `theta_series` (the reliable ones) and `listening` (dictation count, error kinds of the last 14 days) |
+| per drill attempt | `practice/attempts.csv` columns `theta` (before the attempt), `b`, `score` (the credit), `events` |
+| report | `vocab/progress.md` § *Ability over time*: one line per session and a chart of `θ` per test; § *Listening*: `θ_listen` next to the test's θ and the error kinds |

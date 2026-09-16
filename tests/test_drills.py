@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app import drills, learn, main, store, tts
+from app import drills, irt, learn, main, store, tts
 
 SKIP = drills.forms_pattern("skip", ["skipped", "skipping", "skips"])
 SENTENCE = "He skipped a row in the text and so the sentence was incomprehensible"
@@ -80,16 +80,17 @@ def test_score_cloze_and_ids():
 
 
 def test_dictation_score_opcodes_and_clamp():
+    """The word-level diff of #10 (`word_score`, `errors`, `wrong`, `diff`); `score` is the credit since #16."""
     r = drills.dictation_score("Don't run — you'll be out of breath.", "don't run you'll be out of breath")
-    assert r["score"] == 1.0 and r["errors"] == [] and r["words"] == 7
+    assert r["score"] == r["word_score"] == 1.0 and r["errors"] == [] and r["words"] == 7
     r = drills.dictation_score(SENTENCE, "he skiped a row in the text and the sentance was incomprehensible")
     assert r["errors"] == [("skipped", "skiped"), ("so", ""), ("sentence", "sentance")] and r["wrong"] == ["skipped", "so", "sentence"]
-    assert r["score"] == round(1 - 3 / 13, 4)
+    assert r["word_score"] == round(1 - 3 / 13, 4) and 0.9 < r["score"] < 1      # 5 of 69 characters off
     # replace spans of unequal length count the longer side; a long wrong answer is clamped at 0
     r = drills.dictation_score("one two three", "one four five six three")
-    assert r["errors"] == [("two", "four"), ("", "five"), ("", "six")] and r["score"] == 0.0
+    assert r["errors"] == [("two", "four"), ("", "five"), ("", "six")] and r["word_score"] == 0.0
     r = drills.dictation_score("one two three", "a b c d e f g h")
-    assert r["score"] == 0.0 and r["words"] == 3 and r["wrong"] == ["one", "two", "three"]
+    assert r["word_score"] == 0.0 and r["words"] == 3 and r["wrong"] == ["one", "two", "three"] and r["score"] < 0.2
     assert drills.dictation_score("one two three", "")["score"] == 0.0
     assert [d["op"] for d in drills.dictation_score("one two three", "one three")["diff"]] == ["equal", "delete", "equal"]
 
@@ -166,7 +167,8 @@ def test_attempt_row_and_tts_cache(tmp_path, monkeypatch):
     rows = store.load_attempts()
     assert list(rows[0]) == store.ATTEMPTS_HEADER
     assert rows[0] == {"date": "2026-09-16", "attempt": "2026-09-16_101010_abcd", "task": "read-aloud", "item": "skip.1",
-                       "subband": "", "seconds": "", "timed_out": "1", "score": "", "self": "4", "words": "", "errors": "", "file": ""}
+                       "subband": "", "seconds": "", "timed_out": "1", "score": "", "self": "4", "words": "", "errors": "", "file": "",
+                       "theta": "", "b": "", "events": ""}
     calls = []
     monkeypatch.setattr(tts, "synthesise", lambda text, voice, path: (calls.append(text), path.write_bytes(b"ID3")))
     a = tts.audio("Hello there.", "en-US-AriaNeural", tmp_path / "audio")
@@ -250,13 +252,17 @@ def test_cloze_and_dictation_api(practice):
     assert d2["id"] != d["id"]
     long = " ".join(["zzz"] * 40)
     bad = c.post(f"/api/drill/listen-and-type/{d2['id']}", json={"attempt": d2["attempt"], "typed": long, "ms": 60000, "plays": 3, "timed_out": True}).json()
-    assert bad["score"] == 0.0 and bad["words"] == len(drills.normalise(bad["reference"])) and bad["timed_out"]
+    assert bad["score"] < irt.WRONG and bad["word_score"] == 0.0 and bad["words"] == len(drills.normalise(bad["reference"])) and bad["timed_out"]
     rows = attempts(practice / "attempts.csv")
     assert [r["task"] for r in rows] == ["read-and-complete"] * 2 + ["listen-and-type"] * 2
-    assert rows[-1]["score"] == "0.0" and rows[-1]["timed_out"] == "1" and rows[-2]["score"] == "1.0" and rows[-2]["errors"] == ""
-    families = {drills.family_of(w, main.FORMS) for w in drills.normalise(bad["reference"])} - {None}
+    assert rows[-1]["score"] == str(bad["score"]) and rows[-1]["timed_out"] == "1" and rows[-2]["score"] == "1.0" and rows[-2]["errors"] == ""
+    # every content word of the reference is an event; missing ones go to my-words as vocabulary or hearing misses
+    families = {e["family"] for e in bad["events"]}
+    assert families and families == {f for f, _ in drills.parse_events(rows[-1]["events"])}
+    assert all(e["kind"] in ("vocabulary", "hearing") for e in bad["events"])
+    assert rows[-1]["theta"] == "" and float(rows[-1]["b"]) == bad["b"] and bad["theta"] is None   # no test yet: θ does not move
     open_ = {m["family"] for m in learn.open_my_words(learn.load_my_words())}
-    assert families <= open_ and all(m["source"] in ("read-and-complete", "listen-and-type") for m in learn.load_my_words())
+    assert families <= open_ and all(m["source"].split(":")[0] in ("read-and-complete", "listen-and-type") for m in learn.load_my_words())
     # the study list shows them as my-words and the deck tags them `<subband> my-words` (#8's path, untouched)
     words = c.get("/api/learn?n=100").json()["words"]
     assert {w["family"] for w in words if w["reason"] == "my-words"} >= families

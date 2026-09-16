@@ -5,7 +5,9 @@ Read and Complete   cloze(): C-test damage of a senses.csv example (sentence mod
                     inputs (`<family>.<sense>.<seed>` / `<passage-slug>.<seed>`) and cloze() is deterministic.
 Listen and Type     build_sentences(): the dictation bank (one 6–14-word example per family) cached in
                     practice/listen-and-type/sentences.csv with its b_text (app/textdiff.py, issue #15);
-                    dictation_score(): word-level edit distance.
+                    dictation_score(): the credit (character-level edit distance, issue #16) and the word-level
+                    diff; dictation_events(): what each heard word says — hit, form, hearing, spelling, vocabulary.
+                    in_window(): the sentences with |b − θ| ≤ DRILL_WINDOW, widened until DRILL_MIN candidates.
 Read Aloud, speaking and writing tasks: TASKS holds the real DET timings (docs/det-format.md); the prompts
 come from practice/{speaking,writing}/prompts.csv; the self-rating is the mean of four 1–5 lines.
 Every wrong or lacked word goes through family_of() → learn.add_my_word(family, source=<task>, note=…).
@@ -22,6 +24,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Iterable, Optional
 
+from . import phon
 from .bank import PRACTICE, WORD
 
 SENTENCES = PRACTICE / "listen-and-type" / "sentences.csv"
@@ -39,6 +42,10 @@ MIN_WORDS, MAX_WORDS = 6, 14        # example length for the drills (cloze: ≥ 
 MIN_BLANKS, MAX_BLANKS = 2, 5       # blanks per cloze item; fewer → the item is skipped, more → a window of MAX_BLANKS
 PLAYS = 3                           # dictation and Listen Then Speak: how often the audio may be played
 NO_REPEAT_DAYS = 7                  # an item shown in the last week is not drawn again
+DRILL_WINDOW, DRILL_STEP, DRILL_MIN = 0.6, 0.3, 10   # |b − θ| ≤ 0.6, widened by 0.3 until 10 candidates (#16)
+EVENT_KINDS = ("hit", "form", "hearing", "spelling", "vocabulary")   # what a heard or read word tells us (#16)
+SKILL_KINDS = ("form", "hearing", "spelling")                        # the kinds that are not vocabulary evidence
+CLOSE = 2                           # letter edits within which a wrong word is a near miss, not a different word
 RATING_LINES = ("task", "fluency", "vocabulary", "grammar")   # the four 1–5 self-rating lines
 
 # The task table (docs/det-format.md): seconds of preparation and answer time, the minimum (seconds spoken or
@@ -241,11 +248,34 @@ def normalise(text: str) -> list[str]:
     return [w.lower().replace("’", "'") for w in TOKEN.findall(text)]
 
 
+def levenshtein(a: str, b: str) -> int:
+    """Character-level edit distance (insert, delete, substitute)."""
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def credit(reference: str, typed: str) -> float:
+    """The DET's partial credit for a dictation: 1 − d / max(len(ref), len(typed)) on the normalised strings
+    (lower-case, punctuation stripped, whitespace collapsed), `d` = character-level Levenshtein. Identical → 1,
+    one letter off in 40 characters → 0.975, nothing typed → 0."""
+    ref, got = " ".join(normalise(reference)), " ".join(normalise(typed))
+    longest = max(len(ref), len(got))
+    return round(1 - levenshtein(ref, got) / longest, 4) if longest else 0.0
+
+
 def dictation_score(reference: str, typed: str) -> dict:
-    """Word-level edit distance with equal weights (difflib opcodes: delete = missing reference words, insert =
-    extra typed words, replace = the longer span). `score` = max(0, 1 − errors / reference words); `errors` =
-    [(expected, typed)] pairs, blank on one side for a missing or extra word; `wrong` = the reference words in
-    delete and replace spans (the ones that go to my-words); `diff` = the opcodes with their words, for display."""
+    """`score` = credit() (the attempts.csv score since #16); `word_score` = the old word-level measure,
+    max(0, 1 − errors / reference words) over difflib opcodes (delete = missing reference words, insert = extra
+    typed words, replace = the longer span); `errors` = [(expected, typed)] pairs, blank on one side for a missing
+    or extra word; `wrong` = the reference words in delete and replace spans; `diff` = the opcodes with their
+    words, for the result screen and dictation_events()."""
     ref, got = normalise(reference), normalise(typed)
     errors, wrong, diff, n = [], [], [], 0
     for op, i1, i2, j1, j2 in SequenceMatcher(None, ref, got, autojunk=False).get_opcodes():
@@ -260,8 +290,78 @@ def dictation_score(reference: str, typed: str) -> dict:
             n += max(i2 - i1, j2 - j1)
         errors += list(zip_longest(ref[i1:i2], got[j1:j2], fillvalue=""))
         wrong += ref[i1:i2]
-    score = max(0.0, 1 - n / len(ref)) if ref else 0.0
-    return {"score": round(score, 4), "errors": errors, "wrong": wrong, "words": len(ref), "diff": diff}
+    word_score = max(0.0, 1 - n / len(ref)) if ref else 0.0
+    return {"score": credit(reference, typed), "word_score": round(word_score, 4), "errors": errors, "wrong": wrong,
+            "words": len(ref), "diff": diff}
+
+
+def error_kind(ref: str, typed: str, family: str, lex) -> str:
+    """What a wrong content word says (a `replace` pair): `form` — the typed word is another member of the same
+    family (`evicts` for `evict`); `hearing` — the typed word is a *different word of the bank* that sounds like
+    the reference (same Metaphone key, `ward` for `word`) or lies within CLOSE letter edits of it (`went` for
+    `rent`): a real word was heard in place of the right one; `spelling` — a form the bank does not know with the
+    reference's sound (`tennant`, `tenent` for `tenant`) or within CLOSE edits: the right word, the wrong letters;
+    `vocabulary` — anything else (`avoid` for `evict`). Metaphone alone cannot split hearing from spelling
+    (`ward`/`word` and `tennant`/`tenant` share one key each), hence the bank lookup."""
+    other = lex.family(typed)
+    if other == family:
+        return "form"
+    if phon.sounds_alike(ref, typed) or levenshtein(ref, typed) <= CLOSE:
+        return "hearing" if other is not None else "spelling"
+    return "vocabulary"
+
+
+def dictation_events(diff: list[dict], theta: float, lex) -> list[dict]:
+    """One event per content word of the reference (a word whose family is not a function word of `lex`, a
+    textdiff.Lexicon, and is one the test can show — bank.WORD, so `do` and `be` stay out): `equal` → hit; `replace` → error_kind() of the pair (a reference word the typed span is
+    too short to pair with counts as missing); missing (`delete`) → `vocabulary` when the word's b ≥ θ − 1 (a word
+    the learner is not expected to know), `hearing` below it (an easy word that was not caught); an extra typed
+    word is not an event. [{family, kind, word, typed}] in reference order."""
+    out = []
+    for d in diff:
+        if d["op"] == "insert":
+            continue
+        for ref, got in zip_longest(d["ref"], d["typed"] if d["op"] == "replace" else [], fillvalue=""):
+            if not ref:
+                break
+            family = lex.family(ref)
+            if family is None or family in lex.function or not WORD.match(family):
+                continue
+            if d["op"] == "equal":
+                kind = "hit"
+            elif got:
+                kind = error_kind(ref, got, family, lex)
+            else:
+                kind = "vocabulary" if lex.b[family] >= theta - 1 else "hearing"
+            out.append({"family": family, "kind": kind, "word": ref, "typed": got})
+    return out
+
+
+def events_column(events: Iterable[dict]) -> str:
+    """`family:kind|family:kind` — the attempts.csv `events` column."""
+    return "|".join(f"{e['family']}:{e['kind']}" for e in events)
+
+
+def parse_events(s: str) -> list[tuple[str, str]]:
+    """The column back to [(family, kind)]; blank (rows from before #16) → []."""
+    out = []
+    for part in (s or "").split("|"):
+        family, sep, kind = part.partition(":")
+        if sep and kind in EVENT_KINDS:
+            out.append((family, kind))
+    return out
+
+
+def in_window(rows: list[dict], theta: float, b_of, width: float = DRILL_WINDOW, step: float = DRILL_STEP,
+              least: int = DRILL_MIN) -> tuple[list[dict], float]:
+    """The rows with |b_of(row) − θ| ≤ width, the window widened by `step` until it holds `least` rows or the
+    whole list. Returns (rows, the width used)."""
+    span = max(abs(b_of(r) - theta) for r in rows) if rows else 0.0
+    while True:
+        pool = [r for r in rows if abs(b_of(r) - theta) <= width]
+        if len(pool) >= least or width >= span:
+            return pool, width
+        width = round(width + step, 4)
 
 
 # ---- speaking and writing ----------------------------------------------------------------------------------

@@ -103,6 +103,7 @@
   .tag.learned { background: var(--green-bg); color: var(--green); border-color: transparent; }
   .tag.frontier { background: #e8eff7; color: var(--accent); border-color: transparent; }
   .tag.my-words { background: #ece8f7; color: #5b4a9e; border-color: transparent; }
+  .tag.heard-wrong { background: #fbf1dc; color: #9a6b12; border-color: transparent; }
   .tag.new { background: var(--bg); color: var(--muted); }
   .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .toolbar select { height: 36px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font: inherit; }
@@ -154,6 +155,8 @@
   .dresult .text .ok { color: var(--green); } .dresult .text .bad { color: var(--red); text-decoration: line-through; }
   .dresult .text .miss { color: var(--red); font-weight: 500; } .dresult .text .extra { color: var(--muted); text-decoration: line-through; }
   .dresult .text .want { color: var(--green); font-weight: 500; }
+  .dresult .text .kind { font: 500 10px var(--mono); color: var(--muted); vertical-align: super; margin-left: 1px; text-decoration: none; }
+  .dresult .theta { font: 500 13px var(--mono); color: var(--text-2); }
   .rating { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center; max-width: 480px; }
   .rating label { font-size: 14px; color: var(--text-2); }
   .rating .scale { display: flex; gap: 6px; }
@@ -195,7 +198,7 @@
     <div class="group"><span class="eyebrow">Vocabulary</span><span id="d-vocab"></span></div>
     <div class="group"><span class="eyebrow">Speaking</span><span id="d-speak"></span></div>
     <div class="group"><span class="eyebrow">Writing</span><span id="d-write"></span></div>
-    <div class="note">Routine: one speaking and one writing drill a day; cloze and dictation 3× a week, 10 items each, from the frontier sub-band. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
+    <div class="note">Routine: one speaking and one writing drill a day; cloze and dictation 3× a week, 10 items each — cloze from the frontier sub-band, dictation from sentences near your θ, scored with partial credit that moves θ. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
   </div>
 </section>
 
@@ -291,7 +294,7 @@
         <span class="note" id="l-added"></span>
       </form>
       <div class="words" id="l-words"></div>
-      <div class="note">Order: repeat misses, words you added (my-words), misses from the frontier sub-band, other misses, slow answers, then the rest of the frontier sub-band by rank. Words you missed and later got right are left out. Export to Anki writes the batch and marks its my-words entries done.</div>
+      <div class="note">Order: repeat misses, words you added (my-words) and words you heard wrong in dictation (heard wrong — practise them, they are not exported), misses from the frontier sub-band, other misses, slow answers, then the rest of the frontier sub-band by rank. Words you missed and later got right are left out. Export to Anki writes the batch and marks its my-words entries done.</div>
     </div>
   </div>
   <div class="actions">
@@ -442,7 +445,8 @@
     $('l-level').textContent = d.level ? `level ${d.level}` : 'no level yet';
     const trend = { up: 'going up', down: 'going down', flat: 'holding' }[d.trend];
     $('l-why').textContent = `Next sub-band to master${trend ? ' · ' + trend : ''}`;
-    $('l-theta').textContent = d.theta == null ? 'No reliable test yet' : `θ ${d.theta.toFixed(2)} ± ${d.se.toFixed(2)} · DET ≈ ${d.det_estimate} (${d.det_range[0]}–${d.det_range[1]})`;
+    $('l-theta').textContent = d.theta == null ? 'No reliable test yet' : `θ ${d.theta.toFixed(2)} ± ${d.se.toFixed(2)} · DET ≈ ${d.det_estimate} (${d.det_range[0]}–${d.det_range[1]})`
+      + (d.theta != null && d.theta_listen !== d.theta ? ` · θ_listen ${d.theta_listen.toFixed(2)} ± ${d.se_listen.toFixed(2)}` : '');
     $('l-counts').innerHTML = ['repeat', 'my-words', 'missed', 'shaky', 'learned'].filter(k => d.counts[k])
       .map(k => `<span class="tag ${k}">${d.counts[k]} ${k}</span>`).join('') + `<span class="tag">${d.counts.known} known</span>`;
     $('l-history').innerHTML = d.thetas.map(h =>
@@ -453,7 +457,7 @@
       `<tr><td class="mono">${s.subband}${s.subband === d.frontier ? ' ←' : ''}</td><td>${s.blocks}</td><td>${s.score.toFixed(2)}</td><td class="${s.status === 'mastered' ? 'ok' : 'bad'}">${s.status}</td></tr>`).join('');
     $('l-words').innerHTML = d.words.length ? d.words.map((w, i) =>
       `<div><span class="n">${i + 1}</span>` +
-      `<span class="w"><b>${esc(w.family)}</b><small>${w.subband}${w.rank == null ? '' : ' · #' + w.rank}</small><span class="tag ${w.reason}">${w.reason}${w.missed > 1 ? ' ×' + w.missed : ''}</span></span>` +
+      `<span class="w"><b>${esc(w.family)}</b><small>${w.subband}${w.rank == null ? '' : ' · #' + w.rank}</small><span class="tag ${w.reason.replace(' ', '-')}">${w.reason}${w.missed > 1 ? ' ×' + w.missed : ''}</span></span>` +
       `<span class="d">${esc(w.definition) || '<em>no definition</em>'}${w.example ? ' — <em>' + esc(w.example) + '</em>' : ''}</span>` +
       `<span class="m">${w.members.length ? 'forms: <i>' + esc(w.members.slice(0, 8).join(', ')) + '</i>' : ''}${w.synonyms.length ? (w.members.length ? ' · ' : '') + '= <i>' + esc(w.synonyms.join(', ')) + '</i>' : ''}</span></div>`).join('')
       : '<span class="empty">Nothing to learn yet — take a test first.</span>';
@@ -530,7 +534,7 @@
   const resultBox = (html) => { $('d-result').innerHTML = html; $('d-result').hidden = false; $('d-stage').hidden = true; $('d-clock').classList.remove('low'); $('d-phase').textContent = 'Result'; $('d-clock').textContent = fmt(Math.round(D.ms / 1000)); };
   const backButtons = () => `<div class="actions"><button class="primary" id="d-next">Next item</button><button class="secondary" id="d-back">Back to start</button></div>`;
   const addedLine = (added) => added.length
-    ? `<div class="note">To my-words: ${added.map(a => `<b>${esc(a.family)}</b>${a.in_index ? '' : ' (extra)'}${a.added ? '' : ' (already open)'}`).join(', ')}</div>`
+    ? `<div class="note">To my-words: ${added.map(a => `<b>${esc(a.family)}</b>${a.kind && a.kind !== 'vocabulary' ? ' (' + a.kind + ')' : ''}${a.in_index ? '' : ' (extra)'}${a.added ? '' : ' (already open)'}`).join(', ')}</div>`
     : '';
   async function openDrill(task, mode) {
     if (!TASK_NAMES[task]) return;
@@ -606,12 +610,19 @@
     stopClock(); $('d-audio').pause(); D.ms = Date.now() - D.startedAt;
     const typed = $('d-typed').value;
     const r = await api(`/api/drill/listen-and-type/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, plays: D.plays, timed_out: timedOut }) });
+    // each wrong reference word carries its kind (issue #16): hearing, spelling, form or vocabulary
+    const kinds = {};
+    r.events.forEach(e => { if (e.kind !== 'hit' && !(e.word in kinds)) kinds[e.word] = e.kind; });
+    const tagged = (ws, cls) => ws.map(w => `<span class="${cls}">${esc(w)}</span>${kinds[w] ? `<span class="kind">${kinds[w]}</span>` : ''}`).join(' ');
     const diff = r.diff.map(d => d.op === 'equal' ? `<span class="ok">${esc(d.ref.join(' '))}</span>`
-      : d.op === 'delete' ? `<span class="miss">${esc(d.ref.join(' '))}</span>`
+      : d.op === 'delete' ? tagged(d.ref, 'miss')
       : d.op === 'insert' ? `<span class="extra">${esc(d.typed.join(' '))}</span>`
-      : `<span class="bad">${esc(d.typed.join(' '))}</span> <span class="want">${esc(d.ref.join(' '))}</span>`).join(' ');
-    resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}×${timedOut ? ' · time ran out' : ''}</span></div>` +
-      `<div class="text">${diff}</div><div class="note">Reference: <em>${esc(r.reference)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it), <span class="mono">grey</span> extra</div>` +
+      : `<span class="bad">${esc(d.typed.join(' '))}</span> ${tagged(d.ref, 'want')}`).join(' ');
+    const theta = r.theta == null ? 'θ moves once a reliable test is on record'
+      : `θ ${r.theta.toFixed(2)} → ${r.theta_after.toFixed(2)} ± ${r.se_after.toFixed(2)} · sentence b ${r.b.toFixed(2)}`;
+    resultBox(`<div class="big"><b>${Math.round(r.credit * 100)}%</b><span>credit · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}×${timedOut ? ' · time ran out' : ''}</span></div>` +
+      `<div class="theta">${theta}</div>` +
+      `<div class="text">${diff}</div><div class="note">Reference: <em>${esc(r.reference)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it, tagged with what went wrong: hearing, spelling, form, vocabulary), <span class="mono">grey</span> extra</div>` +
       `<audio controls src="${D.item.audio_url}"></audio>` + addedLine(r.added) + backButtons());
     wireResult(() => openDrill('listen-and-type'));
   }

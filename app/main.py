@@ -98,15 +98,21 @@ def index():
 
 
 def current_state() -> dict:
-    """The learner now, from the history on disk: `sessions`, the θ history (`thetas`), `theta`/`se` of the last
-    reliable session (None before one), `level`, `frontier`, `det_estimate`, `det_range`. The start page, the
-    Learn page and the drills need the same frontier, and the sessions are loaded once per request."""
-    sessions = store.load_sessions()
+    """The learner now, from the history on disk: `sessions`, `attempts`, the θ history (`thetas`), `theta_test`
+    of the last reliable session, `theta`/`se` = that posterior updated by the scored drill attempts since it
+    (learn.drill_theta, #16; None before a reliable test), `theta_listen`/`se_listen` from the dictation attempts
+    only, `level`, `frontier`, `det_estimate`, `det_range`. The start page, the Learn page and the drills need
+    the same numbers, and the files are loaded once per request."""
+    sessions, attempts = store.load_sessions(), store.load_attempts()
     thetas = learn.theta_history(sessions, SUBBANDS, BANK.b)
-    now = learn.current_theta(thetas)
+    test = learn.current_theta(thetas)
+    now = learn.drill_theta(thetas, attempts)
+    listen = learn.drill_theta(thetas, attempts, ("listen-and-type",))
     theta, se = now if now else (None, None)
     level, front = learn.frontier(theta, SUBBANDS)
-    return {"sessions": sessions, "thetas": thetas, "theta": theta, "se": se, "level": level, "frontier": front,
+    return {"sessions": sessions, "attempts": attempts, "thetas": thetas, "theta": theta, "se": se,
+            "theta_test": test[0] if test else None, "theta_listen": listen[0] if listen else None,
+            "se_listen": listen[1] if listen else None, "level": level, "frontier": front,
             "det_estimate": irt.det_estimate(theta, SUBBANDS) if now else None,
             "det_range": list(irt.det_range(theta, se, SUBBANDS)) if now else None}
 
@@ -122,8 +128,9 @@ def config():
             "subbands": [asdict(b) for b in SUBBANDS], "last": last[-1] if last else None,
             "retest": learn.retest_due(last, st["frontier"]), "frontier": st["frontier"], "level": st["level"],
             "theta": st["theta"], "se": st["se"], "det_estimate": st["det_estimate"], "det_range": st["det_range"],
+            "theta_test": st["theta_test"], "theta_listen": st["theta_listen"], "se_listen": st["se_listen"],
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None,
-            "tasks": drills.TASKS, "today": drills.today_counts(store.load_attempts())}
+            "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"])}
 
 
 @app.post("/api/session")
@@ -178,16 +185,17 @@ def result(sid: str):
 def learn_view(n: int) -> dict:
     """The Learn page: the progress report (level, frontier, pooled sub-bands, counts, chart series — the same
     dict GET /api/progress and scripts/report.py use) plus the history rows and the study list."""
-    sessions = store.load_sessions()
+    sessions, attempts = store.load_sessions(), store.load_attempts()
     levels = store.load_levels()
-    r = progress.build(sessions, levels, SUBBANDS, b_of=BANK.b)
-    stats = learn.word_stats(sessions, SUBBANDS)
+    r = progress.build(sessions, levels, SUBBANDS, b_of=BANK.b, attempts=attempts, index=BANK.index)
+    stats = learn.word_stats(sessions, SUBBANDS, attempts, BANK.index)
     history, _ = learn.level_history(levels)
     my_words = learn.open_my_words(learn.load_my_words())
     counts = {**r["counts"], "my-words": len(my_words)}
     return {"sessions": r["tests"], "history": history, "trend": r["trend"], "level": r["level"],
             "frontier": r["frontier"], "theta": r["theta"], "se": r["se"], "det_estimate": r["det_estimate"],
-            "det_range": r["det_range"], "thetas": r["thetas"], "theta_series": r["theta_series"],
+            "det_range": r["det_range"], "theta_test": r["theta_test"], "theta_listen": r["theta_listen"],
+            "se_listen": r["se_listen"], "thetas": r["thetas"], "theta_series": r["theta_series"],
             "subbands": r["subbands"], "counts": counts, "series": r["series"], "batch": n,
             "words": learn.study_list(stats, r["frontier"], BANK.index, SYNONYMS, my_words, n, BANK.examples)}
 
@@ -197,7 +205,8 @@ def progress_page():
     """The report dict scripts/report.py renders into vocab/progress.md (no Anki), mock tests included;
     a malformed mocks.csv row is a 422 naming the line (#11), the same message the script prints."""
     try:
-        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b)
+        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b,
+                              attempts=store.load_attempts(), index=BANK.index)
     except ValueError as e:
         raise HTTPException(422, f"vocab/tests/mocks.csv: {e}")
 
@@ -209,7 +218,7 @@ def learn_page(n: int = learn.BATCH):
 
 @app.post("/api/learn/export")
 def learn_export(n: int = learn.BATCH):
-    words = learn_view(max(1, min(n, 100)))["words"]
+    words = learn.card_entries(learn_view(max(1, min(n, 100)))["words"])
     today = date.today()
     path = learn.export_anki(today.isoformat(), words)
     done = learn.mark_done([w["family"] for w in words if w["reason"] == "my-words"], today)
@@ -350,6 +359,21 @@ def add_words(words: list[str], task: str, note: str, map_only: bool) -> list[di
     return out
 
 
+def add_event_words(events: list[dict], task: str, note: str) -> list[dict]:
+    """The wrong words of a drill's events (#16) → my-words, once per family: a `vocabulary` miss under
+    `source = <task>`, a form / hearing / spelling slip under `<task>:<kind>` (learn.skill_source: shown as *heard
+    wrong*, never exported). Hits add nothing."""
+    out, seen = [], set()
+    for e in events:
+        if e["kind"] == "hit" or e["family"] in seen:
+            continue
+        seen.add(e["family"])
+        source = task if e["kind"] == "vocabulary" else f"{task}:{e['kind']}"
+        out.append({"word": e["word"], "family": e["family"], "in_index": True, "kind": e["kind"],
+                    "added": learn.add_my_word(e["family"], source, note)})
+    return out
+
+
 @app.get("/api/drill/{task}/next")
 def drill_next(task: str, mode: str = "sentence"):
     """A fresh item for `task` and the attempt id to answer it with. Cloze and dictation draw from the frontier
@@ -380,7 +404,7 @@ def drill_next(task: str, mode: str = "sentence"):
                 "subband": "", "source": p.get("source", ""), "pieces": item["pieces"], "blanks": item["blanks"],
                 "seconds": t["passage_seconds"], "b": textdiff.b_of(p) if p["b_text"] is not None else None}
     if task == "read-and-complete":
-        stats = learn.word_stats(sessions, SUBBANDS)
+        stats = learn.word_stats(sessions, SUBBANDS, st["attempts"], BANK.index)
         my_words = learn.open_my_words(learn.load_my_words())
         studying = {w["family"] for w in learn.study_list(stats, front, BANK.index, SYNONYMS, my_words, learn.BATCH, BANK.examples)}
         pool = [c for c in cloze_pool() if c["subband"] == front or c["family"] in studying]
@@ -392,13 +416,18 @@ def drill_next(task: str, mode: str = "sentence"):
         return {"task": task, "attempt": attempt, "id": drills.cloze_id(c["family"], c["sense"], seed), "mode": "sentence",
                 "subband": c["subband"], "pieces": item["pieces"], "blanks": item["blanks"], "seconds": t["seconds"],
                 "b": textdiff.b_of(c)}
-    # listen-and-type and read-aloud: the dictation bank, frontier sub-band
-    pool = [r for r in sentence_bank() if r["subband"] == front] or sentence_bank()
+    # listen-and-type and read-aloud: the dictation bank near θ (|b − θ| ≤ 0.6, widened until 10 candidates,
+    # issue #16); the frontier sub-band before the first reliable test
+    bank = sentence_bank()
+    if st["theta"] is not None:
+        pool, width = drills.in_window(bank, st["theta"], textdiff.b_of)
+    else:
+        pool, width = [r for r in bank if r["subband"] == front] or bank, None
     row = drills.pick(pool, recent, lambda r: r["id"], rng)
     if row is None:
         raise HTTPException(404, "the sentence bank is empty")
     d = {"task": task, "attempt": attempt, "id": row["id"], "subband": row["subband"], "seconds": t["seconds"], "prep": 0,
-         "b": textdiff.b_of(row)}
+         "b": textdiff.b_of(row), "theta": st["theta"], "window": width}
     if task == "read-aloud":
         return {**d, "sentence": row["sentence"], "min": 0}
     speech(row["sentence"], row["voice"])
@@ -470,6 +499,34 @@ def drill_draft(task: str, item: str, d: Draft):
     return {"file": file, "words": n}
 
 
+def dictation_answer(item: str, a: DrillAnswer, row: dict) -> dict:
+    """Listen and Type (issue #16): the credit (character-level edit distance) is the attempt's score and, through
+    irt.snap(), the response that moves θ — `theta` in the row is θ before the attempt, `b` the sentence's
+    difficulty; `events` says what each content word told us (drills.dictation_events) and feeds word_stats and
+    my-words (add_event_words). After the row is written the bank's b_adjust is refit from every attempt
+    (textdiff.refit_bank, #15) and the bank rewritten when something changed."""
+    st = current_state()
+    bank = sentence_bank()
+    s = next((r for r in bank if r["id"] == item), None)
+    if s is None:
+        raise HTTPException(404, f"unknown sentence {item!r}")
+    theta, b = st["theta"], textdiff.b_of(s)
+    r = drills.dictation_score(s["sentence"], a.typed if isinstance(a.typed, str) else " ".join(a.typed))
+    events = drills.dictation_events(r["diff"], theta if theta is not None else irt.THETA0, LEX)
+    added = add_event_words(events, "listen-and-type", s["sentence"])
+    row.update(subband=s["subband"], score=r["score"], words=r["words"], errors=drills.errors_column(r["errors"]),
+               theta=theta, b=b, events=drills.events_column(events))
+    store.append_attempt(row)
+    attempts = store.load_attempts()
+    after = learn.drill_theta(st["thetas"], attempts)                  # θ now, the row just written included
+    if textdiff.refit_bank(bank, attempts, "listen-and-type"):
+        drills.write_sentences(bank)
+    return {"attempt": row["attempt"], "score": r["score"], "credit": r["score"], "word_score": r["word_score"],
+            "words": r["words"], "reference": s["sentence"], "diff": r["diff"], "errors": r["errors"], "events": events,
+            "added": added, "plays": a.plays, "timed_out": a.timed_out, "b": b, "family": s["family"],
+            "theta": theta, "se": st["se"], "theta_after": after[0] if after else None, "se_after": after[1] if after else None}
+
+
 @app.post("/api/drill/{task}/{item}")
 def drill_answer(task: str, item: str, a: DrillAnswer):
     """Score the attempt (cloze, dictation) or take the self-rating (speaking, writing); one attempts.csv row;
@@ -503,13 +560,7 @@ def drill_answer(task: str, item: str, a: DrillAnswer):
                 "text": ex, "answers": gen["answers"], "wrong": [{"expected": w, "typed": g} for w, g in wrong],
                 "added": added, "timed_out": a.timed_out}
     if task == "listen-and-type":
-        s = sentence_row(item)
-        r = drills.dictation_score(s["sentence"], a.typed if isinstance(a.typed, str) else " ".join(a.typed))
-        added = add_words(r["wrong"], task, s["sentence"], map_only=True)
-        row.update(subband=s["subband"], score=r["score"], words=r["words"], errors=drills.errors_column(r["errors"]))
-        store.append_attempt(row)
-        return {"attempt": attempt, "score": r["score"], "words": r["words"], "reference": s["sentence"],
-                "diff": r["diff"], "errors": r["errors"], "added": added, "plays": a.plays, "timed_out": a.timed_out}
+        return dictation_answer(item, a, row)
     # speaking and writing: the self-rating (mean of four lines, half up) and the "words I lacked" box
     try:
         rating = drills.self_rating(a.rating) if a.rating else None

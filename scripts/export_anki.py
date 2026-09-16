@@ -7,7 +7,8 @@
     python3 scripts/export_anki.py 4k-a --check    # no file: families with no gappable example (overrides.csv to-do)
 
 One note per family for the "DET family" note type (docs/anki.md): 7 fields + a tag column. --batch and
---my-words mark the my-words entries they wrote as done; a sub-band deck never touches my-words.csv.
+--my-words mark the my-words entries they wrote as done; a sub-band deck never touches my-words.csv. A my-words
+row from a dictation slip (source `listen-and-type:hearing` / `:spelling` / `:form`, issue #16) is never a card.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     bank = Bank()
     synonyms = learn.load_synonyms()
     sessions = store.load_sessions()
-    stats = learn.word_stats(sessions, subbands)
+    stats = learn.word_stats(sessions, subbands, store.load_attempts(), bank.index)
     today = date.today()
 
     if a.subband:
@@ -55,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         now = learn.current_theta(learn.theta_history(sessions, subbands, bank.b))
         _, front = learn.frontier(now[0] if now else None, subbands)
         my_words = learn.open_my_words(learn.load_my_words())
-        entries = learn.study_list(stats, front, bank.index, synonyms, my_words, a.batch, bank.examples)
+        entries = learn.card_entries(learn.study_list(stats, front, bank.index, synonyms, my_words, a.batch, bank.examples))
         name, done = today.isoformat(), [e["family"] for e in entries if e["reason"] == "my-words"]
     else:
         entries = learn.my_words_entries(learn.open_my_words(learn.load_my_words()), bank.index, stats, synonyms,

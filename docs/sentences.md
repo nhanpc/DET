@@ -158,31 +158,31 @@ the shift to three — and shrinks the result toward the prediction with weight
 `5 / (5 + n)`. The difference is stored as `b_adjust` (a `sentences.csv` and
 `cloze.csv` column, a passage front-matter line; `0` until then) and the item
 plays at `b = b_text + b_adjust`. `textdiff.refit_bank()` reads
-`practice/attempts.csv` for it — rows carry `θ` from #16 on; rows without it
-are skipped, so today every `b_adjust` is 0.
+`practice/attempts.csv` for it after every dictation answer — rows carry `θ`
+from #16 on; rows without it are skipped.
 
 ## The chain today: level → sentence → feedback
 
 ```mermaid
 flowchart LR
     T[Level test<br/>yes/no on words<br/>15 per block] -->|"Rasch EAP: θ from every word's b<br/>docs/det-adaptive.md"| L[θ 8.1 → level 4k-a<br/>frontier 5k-a]
-    L -->|"subband == frontier (b_text is computed, not yet used: #16)"| P[Sentence pool<br/>164 sentences]
+    L -->|"|b_text − θ| ≤ 0.6 (#16)"| P[Sentence pool<br/>≥ 10 sentences]
     P -->|random, no repeat in 7 days| D[Dictation<br/>edge-tts, ≤ 3 plays]
-    D -->|word-level diff| R[Wrong words]
-    R -->|"in index.csv"| M[(vocab/my-words.csv)]
+    D -->|"credit: character edit distance"| L
+    D -->|word-level diff| R["events per word<br/>hit · form · hearing · spelling · vocabulary"]
+    R -->|"vocabulary miss, skill slip"| M[(vocab/my-words.csv)]
+    R -->|"vocabulary miss · hits on 2 days"| W[word status]
     M --> S[Study list · Anki]
-    R -. no path .-> T
-    D -. hits are not recorded .-> M
 ```
 
 | Link | Exists? | How |
 |---|---|---|
 | word level → which sentence | yes | the target family is in the frontier sub-band — the sub-band containing `θ` (`learn.frontier()`, [det-adaptive.md](det-adaptive.md)) |
-| word level → sentence difficulty | computed, not yet used | `b_text` per sentence and passage (above); the drills still draw by the band tag until #16 and #17 select by `\|b_text − θ\|` |
-| sentence errors → my-words | yes | a wrong word that maps to an `index.csv` family → `learn.add_my_word(source = task)` |
-| sentence errors → word status or level | no | `learn.word_stats()` reads the level-test sessions only; a dictation error never changes `repeat / missed / shaky / known` or the frontier |
-| sentence hits → evidence of knowing | no | only the `errors` column is written; a correct word leaves no trace |
-| kind of error (hearing, spelling, vocabulary) | no | *ward → word* and an unknown *evict* are logged the same way |
+| word level → sentence difficulty | dictation: yes | `b_text` per sentence and passage (above); Listen and Type and Read Aloud draw from `\|b − θ\| ≤ 0.6` (#16, [det-adaptive.md](det-adaptive.md) § *Dictation*); the cloze drills still draw by the band tag until #17 |
+| sentence errors → my-words | yes | a wrong word that maps to an `index.csv` family → `learn.add_my_word(source = task)`; a hearing / spelling / form slip under `source = task:kind`, shown as *heard wrong*, never a card |
+| sentence errors → word status or level | dictation: yes | `learn.word_stats()` merges the `events` of `attempts.csv` with the test sessions: a `vocabulary` miss is a "no"; the credit moves `θ` (#16) |
+| sentence hits → evidence of knowing | dictation: yes | every content word typed right is a `hit` event; two hit days with no later miss make the word `known` |
+| kind of error (hearing, spelling, vocabulary) | dictation: yes | *ward → word* is `hearing` (same Metaphone key, `app/phon.py`), *tennant → tenant* `spelling`, a missing *evict* `vocabulary` — the table in [practice/README.md](../practice/README.md) § Listen and Type |
 
 ## What would close the loop
 

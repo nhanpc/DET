@@ -5,14 +5,22 @@ Level and frontier come from the ability θ of issue #14 (app/irt.py): theta_his
 session through the same posterior the test used, chaining each session's prior on the last reliable θ;
 frontier() turns the current θ into (level, frontier). The pooled sub-band scores stay as a second view.
 
-Word status, from every time the word was shown:
+Word status, from every time the word was shown — in the test, and since #16 in the drills (the `events`
+column of practice/attempts.csv, merged in time order: a `vocabulary` miss is a "no", a `hit` on two different
+days with no later miss is a "yes"; `form`, `hearing`, `spelling` only set the stat's `skill` note):
   repeat   missed twice or more, still wrong the last time
   missed   wrong the last time it was shown
   learned  missed before, right the last time  → skipped unless missed again
   shaky    right, but slower than SLOW × that session's median answer time
   known    right and quick
-Study order: repeat → my-words (open rows of vocab/my-words.csv, issue #8) → missed in the frontier
-sub-band → other misses (newest first) → shaky → the rest of the frontier sub-band by rank.
+  (blank)  only drill evidence so far — one hit day, or a skill note — no status yet
+Study order: repeat → my-words (open rows of vocab/my-words.csv, issue #8; a row from a dictation slip,
+source `<task>:<kind>`, shows as *heard wrong* and is never exported) → missed in the frontier sub-band →
+other misses (newest first) → shaky → the rest of the frontier sub-band by rank.
+
+The ability θ of the drills (drill_theta(), #16): the last reliable test's posterior, N(θ, se²), updated by every
+scored drill attempt since it (rows with a `b`, the item's difficulty, and a `score`, the credit, through
+irt.snap()); θ_listen is the same with the dictation attempts only.
 
 Every deck (the Learn-page batch, a whole sub-band, the my-words deck) goes through card_entry() and
 export_anki(): one note per family for the "DET family" note type (docs/anki.md), two cards — recognise
@@ -30,6 +38,7 @@ from typing import Iterable, Optional
 
 from . import irt
 from .bank import VOCAB, WORD, Subband
+from .drills import SKILL_KINDS, parse_events
 
 BATCH = 20
 SLOW = 2.0            # a correct answer this many times slower than the session median → shaky
@@ -43,6 +52,9 @@ NOTE_TYPE = "DET family"
 FIELDS = ["Word", "Forms", "Definition", "Example", "Gap", "Hint", "Synonyms"]   # note type fields, in order
 BLANK = "_____"
 STATUSES = ("repeat", "missed", "learned", "shaky", "known")   # WordStat.status values, study order
+HEARD_WRONG = "heard wrong"                                      # study-list reason of a my-words row from a skill slip
+DRILL_TASKS = ("listen-and-type", "read-and-complete", "fill-in-the-blanks")   # drills whose score is a credit on the scale
+HIT_DAYS = 2                                                    # drill hits on this many days = a right answer / row done
 
 
 @dataclass
@@ -56,25 +68,61 @@ class WordStat:
     last_at: str = ""              # session start timestamp, for ordering
     slow: bool = False             # last correct answer was slow
     dates: list[str] = field(default_factory=list)
+    hits: list[str] = field(default_factory=list)     # days with a drill hit since the last miss (#16)
+    skill: str = ""                # the last form / hearing / spelling slip in a drill, "" when none (#16)
 
     @property
     def status(self) -> str:
         if self.last == "miss":
             return "repeat" if self.missed >= 2 else "missed"
-        if self.missed:
-            return "learned"
-        return "shaky" if self.slow else "known"
+        if self.last == "correct":
+            return "learned" if self.missed else ("shaky" if self.slow else "known")
+        return ""
+
+
+def attempt_time(row: dict) -> str:
+    """The ISO timestamp of an attempts.csv row from its id (`2026-09-16_101010_abcd` → `2026-09-16T10:10:10`),
+    comparable with a session's `started`."""
+    a = row["attempt"]
+    return f"{a[:10]}T{a[11:13]}:{a[13:15]}:{a[15:17]}"
 
 
 def _sorted(sessions: list[dict]) -> list[dict]:
     return sorted((s for s in sessions if s.get("finished")), key=lambda s: s["started"])
 
 
-def word_stats(sessions: list[dict], subbands: Optional[list[Subband]] = None) -> dict[str, WordStat]:
+def _merge_events(stats: dict[str, WordStat], row: dict, index: Optional[dict[str, dict]]) -> None:
+    """One attempts.csv row's `events` into the stats (the module docstring has the rules)."""
+    day, at = row["date"], attempt_time(row)
+    for family, kind in parse_events(row.get("events", "")):
+        w = stats.get(family) or stats.setdefault(family, WordStat(family, index[family]["subband"] if index and family in index else ""))
+        if kind == "vocabulary":
+            w.shown, w.missed, w.last, w.slow, w.hits = w.shown + 1, w.missed + 1, "miss", False, []
+            w.last_date, w.last_at = day, at
+            w.dates.append(day)
+        elif kind == "hit":
+            if day not in w.hits:
+                w.hits.append(day)
+            w.shown, w.last_date, w.last_at = w.shown + 1, day, at
+            w.dates.append(day)
+            if len(w.hits) >= HIT_DAYS:
+                w.last, w.slow = "correct", False
+        elif kind in SKILL_KINDS:
+            w.skill = kind
+
+
+def word_stats(sessions: list[dict], subbands: Optional[list[Subband]] = None, attempts: Optional[list[dict]] = None,
+               index: Optional[dict[str, dict]] = None) -> dict[str, WordStat]:
     """`subbands` lets an item saved with its `b` (#14) carry its own sub-band; a block spans up to three, so
-    the block's label is only the fallback for files from before #14."""
+    the block's label is only the fallback for files from before #14. `attempts` (attempts.csv rows) merge the
+    drill events of #16 in time order with the sessions; `index` gives those words their sub-band."""
     stats: dict[str, WordStat] = {}
-    for s in _sorted(sessions):
+    timeline: list[tuple[str, int, dict]] = [(s["started"], 0, s) for s in _sorted(sessions)]
+    timeline += [(attempt_time(r), 1, r) for r in attempts or () if r.get("events")]
+    for _, kind, s in sorted(timeline, key=lambda t: t[:2]):
+        if kind:
+            _merge_events(stats, s, index)
+            continue
         day = s["started"][:10]
         items = [i for b in s["blocks"] for i in b["items"] if i["real"] and i["answer"] is not None]
         times = [i["ms"] for i in items if i["answer"] and i["ms"] is not None]
@@ -92,8 +140,28 @@ def word_stats(sessions: list[dict], subbands: Optional[list[Subband]] = None) -
                     w.last = "correct"
                     w.slow = limit is not None and i["ms"] is not None and i["ms"] > limit
                 else:
-                    w.last, w.missed, w.slow = "miss", w.missed + 1, False
+                    w.last, w.missed, w.slow, w.hits = "miss", w.missed + 1, False, []
     return stats
+
+
+def drill_responses(attempts: Iterable[dict], since: str = "", tasks: Iterable[str] = DRILL_TASKS) -> list[tuple[float, float]]:
+    """(b, credit) of every scored attempt of `tasks` after `since` (an ISO timestamp), in time order — the rows
+    that carry the item's `b` (written from #16 on)."""
+    rows = [r for r in attempts if r.get("task") in set(tasks) and r.get("b") and r.get("score") not in (None, "")
+            and attempt_time(r) > since]
+    return [(float(r["b"]), float(r["score"])) for r in sorted(rows, key=attempt_time)]
+
+
+def drill_theta(history: list[dict], attempts: Iterable[dict], tasks: Iterable[str] = DRILL_TASKS) -> Optional[tuple[float, float]]:
+    """(θ, se) now: the last reliable session's posterior, N(θ, se²), updated by the drill attempts since it
+    (irt.snap() on each credit). None before the first reliable test — the drills then run on the frontier
+    without moving θ. `tasks` = ("listen-and-type",) gives θ_listen."""
+    now = current_theta(history)
+    if now is None:
+        return None
+    last = [h for h in history if h["reliable"]][-1]
+    responses = drill_responses(attempts, last["started"], tasks)
+    return irt.eap(((b, irt.snap(s)) for b, s in responses), now[0], now[1]) if responses else now
 
 
 def subband_scores(sessions: list[dict], subbands: list[Subband]) -> list[dict]:
@@ -129,8 +197,9 @@ def status_counts(stats: dict[str, WordStat]) -> dict[str, int]:
     progress report show the same numbers)."""
     counts = {k: 0 for k in STATUSES}
     for w in stats.values():
-        counts[w.status] += 1
-    counts["seen"] = len(stats)
+        if w.status:
+            counts[w.status] += 1
+    counts["seen"] = sum(counts.values())
     return counts
 
 
@@ -259,7 +328,7 @@ def study_list(stats: dict[str, WordStat], front: str, index: dict[str, dict], s
 
     take([w.word for w in newest if w.status == "repeat"], "repeat")
     for row in my_words:
-        take([row["family"]], "my-words", row["note"])
+        take([row["family"]], HEARD_WRONG if skill_source(row.get("source", "")) else "my-words", row["note"])
     take([w.word for w in newest if w.status == "missed" and w.subband == front], "missed")
     take([w.word for w in newest if w.status == "missed"], "missed")
     take([w.word for w in newest if w.status == "shaky"], "shaky")
@@ -275,14 +344,27 @@ def subband_entries(subband: str, index: dict[str, dict], stats: dict[str, WordS
     Reason = the word's status when it has been shown, else `new`."""
     rows = sorted((r for r in index.values() if r["subband"] == subband and WORD.match(r["family"])),
                   key=lambda r: int(r["rank"]))
-    return [card_entry(r["family"], stats[r["family"]].status if r["family"] in stats else "new",
+    return [card_entry(r["family"], (stats[r["family"]].status if r["family"] in stats else "") or "new",
                        index, stats, synonyms, "", examples) for r in rows]
 
 
 def my_words_entries(my_words: Iterable[dict], index: dict[str, dict], stats: dict[str, WordStat],
                      synonyms: dict[str, list[str]], examples: Optional[dict[str, list[str]]] = None) -> list[dict]:
-    """The my-words deck: one note per open row."""
-    return [card_entry(r["family"], "my-words", index, stats, synonyms, r["note"], examples) for r in my_words]
+    """The my-words deck: one note per open row, skill slips (skill_source()) left out."""
+    return [card_entry(r["family"], "my-words", index, stats, synonyms, r["note"], examples)
+            for r in my_words if not skill_source(r["source"])]
+
+
+def card_entries(entries: Iterable[dict]) -> list[dict]:
+    """The study-list rows that become Anki notes: everything but *heard wrong* (a dictation slip is a dictation
+    matter, not a card)."""
+    return [e for e in entries if e["reason"] != HEARD_WRONG]
+
+
+def skill_source(source: str) -> bool:
+    """True for a my-words `source` written by a drill for a form / hearing / spelling slip: `<task>:<kind>`
+    (`listen-and-type:hearing`). Such a row is shown as *heard wrong* on the Learn page and never exported."""
+    return source.rpartition(":")[2] in SKILL_KINDS if ":" in source else False
 
 
 # ---- vocab/my-words.csv: words met in practice (date, family, source, note, done) ------------------------

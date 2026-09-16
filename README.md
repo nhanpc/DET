@@ -221,13 +221,16 @@ values in [docs/det-format.md](docs/det-format.md).
   does the same to a hand-pasted 50–80-word passage from
   `practice/read-and-complete/passages/`, 3 minutes, first sentence intact.
   Scored per blank; a sentence is not shown twice in a week.
-- **Listen and Type** (`listen-and-type`): a 6–14-word example of the frontier
-  sub-band (the band is the target word's, not the sentence's; the sentence's
-  own difficulty is `b_text`, on the θ scale —
-  [docs/sentences.md](docs/sentences.md)) read by an edge-tts neural voice (four accents; the MP3 is cached
-  in `practice/listen-and-type/audio/`, so a sentence needs the internet
-  once), at most 3 plays, 1 minute; scored by word-level edit distance and
-  shown as a diff.
+- **Listen and Type** (`listen-and-type`): a 6–14-word sentence whose
+  difficulty `b_text` ([docs/sentences.md](docs/sentences.md)) lies within
+  ±0.6 of your θ (the frontier sub-band before the first test), read by an
+  edge-tts neural voice (four accents; the MP3 is cached in
+  `practice/listen-and-type/audio/`, so a sentence needs the internet once),
+  at most 3 plays, 1 minute. Scored as partial credit by character-level
+  edit distance, which moves the same θ as the level test; the word-level
+  diff tags every wrong word with what went wrong — hearing, spelling, form
+  or vocabulary — and only the vocabulary misses count against the word
+  ([docs/det-adaptive.md](docs/det-adaptive.md) § *Dictation*).
 - **Speaking** (`read-aloud`, `speak-photo`, `read-then-speak`,
   `listen-then-speak`): the prompt, photo (`practice/speaking/photos/`, your
   own) or spoken prompt, 20 s preparation, then the microphone records for
