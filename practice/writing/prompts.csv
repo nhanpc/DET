@@ -1,0 +1,19 @@
+id,task,prompt,follow_up,photo,source
+rtw-01,read-then-write,"Some people believe that everyone should learn to cook. Do you agree? Explain your opinion with reasons and examples.",,,own
+rtw-02,read-then-write,"Describe a person you admire. What qualities do they have, and how have they influenced you?",,,own
+rtw-03,read-then-write,"Is it better to live in a big city or a small town? Give reasons for your choice and examples from your own life.",,,own
+rtw-04,read-then-write,"Many people now get their news from social media rather than newspapers or television. What are the advantages and disadvantages of this?",,,own
+rtw-05,read-then-write,"Describe a goal you have set for yourself. Why is it important to you, and what are you doing to reach it?",,,own
+rtw-06,read-then-write,"Should companies allow employees to choose their own working hours? Discuss the benefits and the problems.",,,own
+rtw-07,read-then-write,"What is one thing your school did well, and one thing it could have done better? Explain with examples.",,,own
+rtw-08,read-then-write,"Some people say that travelling is the best form of education. Do you agree or disagree? Support your view.",,,own
+rtw-09,read-then-write,"Describe a problem in your neighbourhood and suggest how it could be solved.",,,own
+iw-01,interactive-writing,"Write about a hobby or activity that you enjoy. Explain what it involves and why you like it.","You mentioned an activity you enjoy. Describe a time when it was difficult or frustrating, and what you did about it.",,own
+iw-02,interactive-writing,"Describe your ideal job. What would you do, and what kind of place would you work in?","What skills or qualifications would you need for that job, and how could you get them?",,own
+iw-03,interactive-writing,"Write about a city you would like to visit and explain why it appeals to you.","Imagine you have three days in that city. What would you do on each day, and why?",,own
+iw-04,interactive-writing,"Do you think it is important to keep old buildings, or should they be replaced with new ones? Give your opinion.","Think of one old building in your area. What would be lost if it were demolished, and who would be affected?",,own
+iw-05,interactive-writing,"Describe a change you have made to your daily routine. Why did you make it, and what happened?","What advice would you give to a friend who wants to make the same change but keeps giving up?",,own
+iw-06,interactive-writing,"Write about a subject you found hard at school and how you dealt with it.","How would you teach that subject differently if you were the teacher?",,own
+iw-07,interactive-writing,"Many people are learning English online rather than in classrooms. Which do you think works better, and why?","You gave your opinion on learning online. What could be done to fix the main weakness of the method you preferred?",,own
+wp-01,write-photo,"Write one or more sentences that describe the photo.",,photo-01.jpg,own photo
+wp-02,write-photo,"Write one or more sentences that describe the photo.",,photo-02.jpg,own photo

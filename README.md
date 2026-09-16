@@ -26,7 +26,9 @@ but every task measures one or two of four skills.
 | Speaking | Read Aloud, Speak About the Photo, Read Then Speak, Listen Then Speak, Speaking Sample |
 
 Subscores: **Literacy** (R+W), **Comprehension** (R+L), **Conversation** (L+S),
-**Production** (W+S). Full details: [docs/det-format.md](docs/det-format.md).
+**Production** (W+S). Full details and the timings: [docs/det-format.md](docs/det-format.md)
+(since July 2025 *Interactive Speaking* replaces *Listen Then Speak* and
+*Read Aloud* is gone; the drills below keep both as practice).
 
 ## Vocabulary is the foundation
 
@@ -192,6 +194,56 @@ The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
 mirror that sub-band's headwords: `vocab/pseudowords.csv`.
 
+## Practise the tasks
+
+Every DET task type as a timed drill in the same app (issue #10, Phase 5):
+*Practise the tasks* on the start page, or `#drill/<task>` — schemas and the
+rules per drill in [practice/README.md](practice/README.md), the real clock
+values in [docs/det-format.md](docs/det-format.md).
+
+- **Read and Complete** (`read-and-complete`): a C-test cut from a
+  `vocab/senses.csv` example of the frontier sub-band — every second eligible
+  word loses its second half (`He ski____ a row in t__ text a__ so the
+  sent____ was incompre________`), 2–5 blanks, 1 minute; *Passage mode*
+  does the same to a hand-pasted 50–80-word passage from
+  `practice/read-and-complete/passages/`, 3 minutes, first sentence intact.
+  Scored per blank; a sentence is not shown twice in a week.
+- **Listen and Type** (`listen-and-type`): a 6–14-word example of the frontier
+  sub-band read by an edge-tts neural voice (four accents; the MP3 is cached
+  in `practice/listen-and-type/audio/`, so a sentence needs the internet
+  once), at most 3 plays, 1 minute; scored by word-level edit distance and
+  shown as a diff.
+- **Speaking** (`read-aloud`, `speak-photo`, `read-then-speak`,
+  `listen-then-speak`): the prompt, photo (`practice/speaking/photos/`, your
+  own) or spoken prompt, 20 s preparation, then the microphone records for
+  up to 90 s (Read Aloud: 20 s, no preparation); the recording is kept as
+  `practice/speaking/recordings/<attempt>.webm` and played back beside the
+  prompt.
+- **Writing** (`write-photo`, `read-then-write`, `interactive-writing`): the
+  prompt, a live word count against the 50-word minimum, 1 or 5 (+ 3)
+  minutes, autosave every 10 s to `practice/writing/drafts/<attempt>.md`;
+  Interactive Writing's part 2 follows part 1 on the row's follow-up.
+- After a speaking or writing drill: **rate yourself** on four 1–5 lines
+  (task fulfilled, fluency, vocabulary, grammar) and list the **words you
+  lacked** — each goes to `vocab/my-words.csv` with `source` = the task id
+  and the prompt id as the note; a word outside the list becomes an *extra*
+  entry. Wrong cloze blanks and dictation words go there by themselves, with
+  the sentence as the note, so the study list and the Anki export
+  (`<subband> my-words`) pick them up without another step.
+- Every attempt is one row of `practice/attempts.csv` (`date, attempt, task,
+  item, subband, seconds, timed_out, score, self, words, errors, file`); the
+  start page shows today's count per task. Routine: one speaking and one
+  writing drill a day, cloze and dictation three times a week.
+
+```bash
+.venv/bin/pip install -r requirements.txt   # adds edge-tts
+.venv/bin/uvicorn app.main:app             # http://localhost:8000/#drill/read-and-complete
+```
+
+The prompts (`practice/{speaking,writing}/prompts.csv`, ~20 each, written in
+the style of the public practice material) and the passages are the parts to
+grow by hand; photos are your own files and stay out of git.
+
 ```mermaid
 flowchart LR
     T[Yes/No test on sub-band N] -->|"≥ 85%"| M[Mark N mastered] --> N1[Test sub-band N+1]
@@ -225,7 +277,7 @@ DET/
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
-├── practice/                    # per-task drills (speaking, writing, dictation)
+├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/passages/, listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
 └── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py
 ```
 

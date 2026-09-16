@@ -4,6 +4,7 @@ sessions/<id>.json  rewritten after every answer — the full session, resumable
 results.csv         one row per finished block
 misses.csv          one row per wrong answer: real word rejected (miss) or invented word accepted (false_alarm)
 levels.csv          one row per finished session
+practice/attempts.csv  one row per drill attempt, every task type (issue #10; the columns are in practice/README.md)
 """
 from __future__ import annotations
 
@@ -13,17 +14,20 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .adaptive import Block, Result, Session
-from .bank import VOCAB
+from .bank import PRACTICE, VOCAB
 
 TESTS = VOCAB / "tests"
 SESSIONS = TESTS / "sessions"
 RESULTS = TESTS / "results.csv"
 MISSES = TESTS / "misses.csv"
 LEVELS = TESTS / "levels.csv"
+ATTEMPTS = PRACTICE / "attempts.csv"
 
 RESULTS_HEADER = ["date", "session", "subband", "n", "hits", "false_alarms", "score"]
 MISSES_HEADER = ["date", "session", "subband", "word", "kind", "ms"]
 LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable"]
+ATTEMPTS_HEADER = ["date", "attempt", "task", "item", "subband", "seconds", "timed_out", "score", "self", "words",
+                   "errors", "file"]
 
 
 def _append(path: Path, header: list[str], rows: list[list]) -> None:
@@ -104,3 +108,14 @@ def load_levels() -> list[dict]:
 
 def load_results() -> list[dict]:
     return _read(RESULTS)
+
+
+def append_attempt(row: dict) -> None:
+    """One practice/attempts.csv row (ATTEMPTS_HEADER order; missing keys blank, None blank, bools 0/1)."""
+    def cell(v):
+        return "" if v is None else int(v) if isinstance(v, bool) else v
+    _append(ATTEMPTS, ATTEMPTS_HEADER, [[cell(row.get(k, "")) for k in ATTEMPTS_HEADER]])
+
+
+def load_attempts() -> list[dict]:
+    return _read(ATTEMPTS)

@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VOCAB = ROOT / "vocab"
+PRACTICE = ROOT / "practice"      # the task drills (issue #10): attempts.csv, prompts, drafts, recordings
 
 WORD = re.compile(r"^[a-z]{3,}$")   # headwords shown in the test: plain lower-case, 3+ letters
 

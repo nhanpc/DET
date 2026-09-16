@@ -1,0 +1,21 @@
+id,task,prompt,photo,source
+rts-01,read-then-speak,"Talk about a teacher who influenced you. What did they teach? How did they treat their students? Why do you still remember them?",,own
+rts-02,read-then-speak,"Describe a place in your city that you like to visit. Where is it? What do you do there? Why do you like it?",,own
+rts-03,read-then-speak,"Some people prefer to work from home, others in an office. Which do you prefer and why? Give examples from your own experience.",,own
+rts-04,read-then-speak,"Talk about a skill you would like to learn. What is it? Why do you want to learn it? How would you go about learning it?",,own
+rts-05,read-then-speak,"Describe a meal you enjoyed recently. What did you eat? Who were you with? What made it memorable?",,own
+rts-06,read-then-speak,"Do you think children should be given pocket money? Why or why not? What did you do with the money you had as a child?",,own
+rts-07,read-then-speak,"Talk about a piece of technology you use every day. What is it? How has it changed the way you live? Could you live without it?",,own
+rts-08,read-then-speak,"Describe a difficult decision you had to make. What were the options? How did you decide? Would you decide the same way today?",,own
+rts-09,read-then-speak,"Many cities are building more cycle lanes and fewer roads. Is this a good idea for your city? What problems might it cause?",,own
+rts-10,read-then-speak,"Talk about a book or film that changed how you think about something. What was it about? What did you take from it?",,own
+lts-01,listen-then-speak,"Tell me about a time when you had to work as part of a team. What was the goal, what was your role, and what did you learn from it?",,own
+lts-02,listen-then-speak,"What is the best way to learn a new language? Talk about the methods you have tried and say which one worked best for you.",,own
+lts-03,listen-then-speak,"Describe a tradition or festival in your country. When does it happen, what do people do, and why is it important?",,own
+lts-04,listen-then-speak,"Some people think that success at work is mostly luck. Others think it is mostly hard work. What do you think, and why?",,own
+lts-05,listen-then-speak,"Talk about a journey you took that did not go as planned. What went wrong, and how did you deal with it?",,own
+lts-06,listen-then-speak,"How has the way people shop changed in the last ten years? Do you think the changes are good or bad?",,own
+lts-07,listen-then-speak,"Describe a hobby you had as a child. Do you still do it? Why did you stop, or why did you keep going?",,own
+lts-08,listen-then-speak,"If you could change one thing about the education system in your country, what would it be and why?",,own
+sp-01,speak-photo,"Describe the photo in as much detail as you can.",photo-01.jpg,own photo
+sp-02,speak-photo,"Describe the photo in as much detail as you can.",photo-02.jpg,own photo

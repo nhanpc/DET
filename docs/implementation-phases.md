@@ -163,23 +163,58 @@ Output: `progress.md` updated after every test.
 
 ## Phase 5 — DET task drills
 
-Goal: practise each task type in test conditions.
+Goal: practise each task type in test conditions. Specified in issue #10.
+
+Status: done (#10). README § *Practise the tasks* is the user-facing summary,
+[practice/README.md](../practice/README.md) the rules and schemas,
+[det-format.md](det-format.md) the timings (checked against Duolingo's guide;
+Read Aloud and Listen Then Speak left the real test in July 2025 and stay as
+drills).
 
 ```
 practice/
-├── listen-and-type/   # dictation sentences + answers
-├── read-and-complete/ # cloze passages generated from short texts
-├── read-aloud/        # sentence sets; record + self-check
-├── speaking/          # photo + open prompts, 20 s prep / 90 s speak
-├── writing/           # photo + open prompts, timed; keep all drafts
-└── interactive/       # reading / listening practice notes
+├── README.md                         # how each drill runs; attempts.csv and prompts.csv schemas
+├── attempts.csv                      # one row per attempt, all task types (written by the app)
+├── read-and-complete/
+│   └── passages/                     # hand-pasted 50–80-word passages, front matter with the source URL
+├── listen-and-type/
+│   ├── sentences.csv                 # id, family, subband, sentence, voice — built from senses.csv on first use, gitignored
+│   └── audio/                        # edge-tts mp3 cache, gitignored
+├── speaking/
+│   ├── prompts.csv                   # id, task, prompt, photo, source (Read Aloud has no rows: it draws from sentences.csv)
+│   ├── photos/                       # own photos, gitignored
+│   └── recordings/                   # <attempt>.webm, gitignored
+├── writing/
+│   ├── prompts.csv                   # id, task, prompt, follow_up, photo, source
+│   └── drafts/                       # <attempt>.md, every draft kept
+└── interactive/
+    └── README.md                     # Interactive Reading / Listening / Speaking and the Samples: notes, no drill
 ```
 
-- One speaking + one writing task per day, timed.
-- Reading/listening drills 3× per week.
-- Errors found in drills → `vocab/my-words.csv` or a grammar note.
+1. `app/drills.py` — the pure functions: the C-test damage rule and the
+   deterministic item ids (`<family>.<sense>.<seed>`, `<slug>.<seed>`), the
+   sentence filter and `build_sentences()`, the dictation diff and score, the
+   task timings, wrong word → family. `app/tts.py` wraps edge-tts
+   (`save_sync`, MP3 cache). `app/main.py` adds `/api/drill/<task>/next`,
+   `/api/drill/<task>/<id>` (answer or self-rating), `…/<id>/audio` (the
+   cached MP3; `POST` uploads a recording), `…/<id>/draft` (autosave),
+   `…/<attempt>/recording`; `app/store.py` adds `append_attempt()` /
+   `load_attempts()`; `index.html` the `#drill/<task>` screens and the
+   start page's today-per-task line.
+2. Vocabulary drills first: Read and Complete (cloze, sentence or passage
+   mode) and Listen and Type (dictation) from the frontier sub-band; Read and
+   Select is the level test itself.
+3. Speaking and writing as timed prompt drills with the real clock, recorded
+   or autosaved, rated on four 1–5 lines, with a *words I lacked* box.
+4. Errors: wrong blanks, wrong dictation words and lacked words →
+   `vocab/my-words.csv` via `learn.add_my_word(family, source=<task>, note)`,
+   once per family; the study list and the Anki export take it from there
+   (#8, unchanged).
+5. Routine: one speaking + one writing drill per day; cloze and dictation 3×
+   per week, 10 items each; the start page counts today's attempts.
 
-Output: dated practice files and an error log.
+Output: `practice/attempts.csv`, dated drafts and recordings, my-words
+entries from every drill.
 
 ## Phase 6 — Mock tests & review
 

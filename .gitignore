@@ -48,3 +48,10 @@ design/**/*.html
 # Anki exports from the Learn page and scripts/export_anki.py (<date>.txt, <subband>.txt, my-words.txt):
 # regenerated on demand, not tracked
 vocab/decks/
+
+# Phase 5 drills (issue #10): the sentence bank and edge-tts cache are rebuilt on demand; photos and
+# recordings are personal. practice/attempts.csv, prompts, passages and writing drafts are tracked.
+practice/listen-and-type/sentences.csv
+practice/listen-and-type/audio/
+practice/speaking/photos/
+practice/speaking/recordings/

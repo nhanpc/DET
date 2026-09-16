@@ -122,6 +122,45 @@
   .chart line { stroke: var(--border); stroke-width: 1; } .chart .goal { stroke: var(--green); stroke-dasharray: 3 3; }
   .chart polyline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
   .chart circle { fill: var(--accent); } .chart text { font: 500 10px var(--mono); fill: var(--muted); }
+
+  /* drills (Phase 5) */
+  .drills { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 720px; }
+  .drills .group { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .drills .group .eyebrow { min-width: 96px; }
+  .drill-btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; }
+  .drill-btn small { font: 500 12px var(--mono); color: var(--muted); } .drill-btn small.done { color: var(--green); }
+  #drill { flex: 1; display: flex; flex-direction: column; }
+  #drill .bar .phase { font-weight: 500; color: var(--text-2); }
+  #drill .bar .clock { font: 500 22px var(--mono); color: var(--text); } #drill .bar .clock.low { color: var(--red); }
+  .dstage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 32px 16px 48px; }
+  .dstage .prompt { max-width: 720px; font: 400 26px/1.4 var(--serif); text-align: center; text-wrap: pretty; }
+  .dstage .photo { max-width: min(100%, 640px); max-height: 50vh; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); }
+  .dstage .hint { font-size: 14px; color: var(--muted); text-align: center; max-width: 560px; }
+  .cloze { max-width: 760px; font: 400 26px/1.9 var(--serif); text-align: center; }
+  .cloze input { width: 3.5em; margin: 0 2px; padding: 2px 6px; border: 0; border-bottom: 2px solid var(--accent-2); border-radius: 0; background: transparent; font: inherit; text-align: center; letter-spacing: .04em; }
+  .cloze input:focus { outline: 0; border-bottom-color: var(--accent); }
+  .cloze input.ok { border-bottom-color: var(--green); color: var(--green); } .cloze input.bad { border-bottom-color: var(--red); color: var(--red); }
+  .dstage textarea { width: 100%; max-width: 760px; min-height: 180px; padding: 14px 16px; border: 1px solid var(--border-2); border-radius: 10px; background: var(--surface); font: 17px/1.6 var(--sans); resize: vertical; }
+  .dstage textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dstage textarea.dict { min-height: 90px; font: 400 22px/1.5 var(--serif); text-align: center; }
+  .dstage .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .rec { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; background: var(--red-bg); color: var(--red); font-weight: 500; }
+  .rec i { width: 10px; height: 10px; border-radius: 5px; background: currentColor; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .wc { font: 500 14px var(--mono); color: var(--muted); } .wc.short { color: var(--red); } .wc.ok { color: var(--green); }
+  .dresult { display: flex; flex-direction: column; gap: 24px; padding: 40px 24px 56px; max-width: 860px; width: 100%; margin: 0 auto; }
+  .dresult .big { display: flex; align-items: baseline; gap: 16px; } .dresult .big b { font: 500 56px/1 var(--serif); }
+  .dresult .text { font: 400 22px/1.7 var(--serif); }
+  .dresult .text .ok { color: var(--green); } .dresult .text .bad { color: var(--red); text-decoration: line-through; }
+  .dresult .text .miss { color: var(--red); font-weight: 500; } .dresult .text .extra { color: var(--muted); text-decoration: line-through; }
+  .dresult .text .want { color: var(--green); font-weight: 500; }
+  .rating { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center; max-width: 480px; }
+  .rating label { font-size: 14px; color: var(--text-2); }
+  .rating .scale { display: flex; gap: 6px; }
+  .rating .scale button { width: 36px; height: 32px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font: 500 14px var(--mono); }
+  .rating .scale button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lacked { width: 100%; max-width: 480px; height: 40px; padding: 0 12px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); font: inherit; }
+  audio { width: 100%; max-width: 480px; }
 </style>
 </head>
 <body>
@@ -150,6 +189,13 @@
     <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
     <div class="note" id="last" hidden></div>
     <div class="note" id="retest" hidden></div>
+  </div>
+  <div class="drills" id="drills">
+    <div class="eyebrow">Practise the tasks · <span id="d-today">nothing yet today</span></div>
+    <div class="group"><span class="eyebrow">Vocabulary</span><span id="d-vocab"></span></div>
+    <div class="group"><span class="eyebrow">Speaking</span><span id="d-speak"></span></div>
+    <div class="group"><span class="eyebrow">Writing</span><span id="d-write"></span></div>
+    <div class="note">Routine: one speaking and one writing drill a day; cloze and dictation 3× a week, 10 items each, from the frontier sub-band. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
   </div>
 </section>
 
@@ -251,11 +297,21 @@
   </div>
 </section>
 
+<section id="drill" hidden>
+  <div class="bar">
+    <div class="left"><span class="eyebrow" id="d-task"></span><span class="mono" id="d-subband"></span></div>
+    <div class="phase" id="d-phase"></div>
+    <div class="clock" id="d-clock">0:00</div>
+  </div>
+  <div class="dstage" id="d-stage"></div>
+  <div class="dresult" id="d-result" hidden></div>
+</section>
+
 </main>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const screens = ['start', 'test', 'between', 'result', 'learn'];
+  const screens = ['start', 'test', 'between', 'result', 'learn', 'drill'];
   let screen = 'start', sid = null, block = null, resume = null, retest = null, maxBlocks = 6, subbands = [], startedAt = 0, shownAt = 0, clockTimer = null, busy = false;
 
   const api = async (path, opts) => {
@@ -263,9 +319,9 @@
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     return r.json();
   };
-  const show = (name) => {
+  const show = (name, hash) => {
     screen = name; screens.forEach(s => { $(s).hidden = s !== name; });
-    history.replaceState(null, '', name === 'learn' ? '#learn' : location.pathname);   // keep the URL in step with the screen
+    history.replaceState(null, '', hash || (name === 'learn' ? '#learn' : location.pathname));   // keep the URL in step with the screen
   };
   const fmt = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 
@@ -287,6 +343,7 @@
       $('retest').innerHTML = `Re-test <b>${retest.subband}</b> ${when} (${retest.days > 0 ? retest.due : 'last reliable test ' + retest.last})`;
       $('btn-retest').textContent = `Re-test ${retest.subband}`;
     }
+    renderDrills(c.tasks, c.today, c.frontier);
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
@@ -429,7 +486,281 @@
     } catch (err) { $('l-added').textContent = err.message; }
   }
 
+  // ---- drills (Phase 5, issue #10): #drill/<task>; one screen, the stage re-rendered per task and phase
+  const TASK_NAMES = { 'read-and-complete': 'Read and Complete', 'listen-and-type': 'Listen and Type', 'read-aloud': 'Read Aloud',
+    'speak-photo': 'Speak About the Photo', 'read-then-speak': 'Read Then Speak', 'listen-then-speak': 'Listen Then Speak',
+    'write-photo': 'Write About the Photo', 'read-then-write': 'Read Then Write', 'interactive-writing': 'Interactive Writing' };
+  const SPEAKING = ['read-aloud', 'speak-photo', 'read-then-speak', 'listen-then-speak'], WRITING = ['write-photo', 'read-then-write', 'interactive-writing'];
+  const D = { task: null, mode: 'sentence', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
+  function renderDrills(tasks, today, frontier) {
+    const btn = (t) => `<button class="drill-btn" data-task="${t}">${TASK_NAMES[t]}<small class="${today[t] ? 'done' : ''}">${today[t] || 0} today</small></button>`;
+    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('listen-and-type') + ` <span class="note">from ${frontier}</span>`;
+    $('d-speak').innerHTML = SPEAKING.map(btn).join(' ');
+    $('d-write').innerHTML = WRITING.map(btn).join(' ');
+    const n = Object.values(today).reduce((a, b) => a + b, 0);
+    $('d-today').textContent = n ? `${n} attempt${n === 1 ? '' : 's'} today` : 'nothing yet today';
+  }
+  const wordCount = (t) => (t.match(/[A-Za-z0-9]+(?:['’][A-Za-z]+)*/g) || []).length;
+  function stopClock() { clearInterval(D.timer); D.timer = null; clearInterval(D.autosave); D.autosave = null; }
+  // A countdown on the bar; `onEnd` fires once at 0:00.
+  function countdown(seconds, phase, onEnd) {
+    stopClock();
+    const end = Date.now() + seconds * 1000;
+    $('d-phase').textContent = phase;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      $('d-clock').textContent = fmt(left);
+      $('d-clock').classList.toggle('low', left <= 10);
+      if (left <= 0) { clearInterval(D.timer); D.timer = null; onEnd(); }
+    };
+    tick();
+    D.timer = setInterval(tick, 250);
+  }
+  const stage = (html) => { $('d-stage').innerHTML = html; $('d-stage').hidden = false; $('d-result').hidden = true; };
+  const resultBox = (html) => { $('d-result').innerHTML = html; $('d-result').hidden = false; $('d-stage').hidden = true; $('d-clock').classList.remove('low'); $('d-phase').textContent = 'Result'; $('d-clock').textContent = fmt(Math.round(D.ms / 1000)); };
+  const backButtons = () => `<div class="actions"><button class="primary" id="d-next">Next item</button><button class="secondary" id="d-back">Back to start</button></div>`;
+  const addedLine = (added) => added.length
+    ? `<div class="note">To my-words: ${added.map(a => `<b>${esc(a.family)}</b>${a.in_index ? '' : ' (extra)'}${a.added ? '' : ' (already open)'}`).join(', ')}</div>`
+    : '';
+  async function openDrill(task, mode) {
+    if (!TASK_NAMES[task]) return;
+    stopClock(); await stopRecording();
+    D.task = task; D.mode = mode === 'passage' ? 'passage' : 'sentence'; D.plays = 0; D.ms = 0; D.text = D.text2 = ''; D.rating = [0, 0, 0, 0];
+    $('d-task').textContent = TASK_NAMES[task];
+    $('d-subband').textContent = ''; $('d-phase').textContent = ''; $('d-clock').textContent = '';
+    show('drill', `#drill/${task}${D.mode === 'passage' ? '/passage' : ''}`);
+    stage('<div class="hint">Loading…</div>');
+    let it;
+    try { it = await api(`/api/drill/${task}/next${task === 'read-and-complete' ? '?mode=' + D.mode : ''}`); }
+    catch (e) { resultBox(`<div class="det">${esc(e.message)}</div><div class="actions"><button class="secondary" id="d-back">Back to start</button></div>`); wireResult(); return; }
+    D.item = it;
+    $('d-subband').textContent = it.subband || '';
+    D.startedAt = Date.now();
+    if (task === 'read-and-complete') renderCloze(it);
+    else if (task === 'listen-and-type') renderDictation(it);
+    else if (task === 'read-aloud') renderReadAloud(it);
+    else if (SPEAKING.includes(task)) renderSpeaking(it);
+    else renderWriting(it);
+  }
+
+  // Read and Complete: the kept letters are in the box, type the rest; Enter or the clock submits.
+  function renderCloze(it) {
+    const html = it.pieces.map(p => typeof p === 'string' ? esc(p)
+      : `<input value="${esc(p.keep)}" data-keep="${esc(p.keep)}" maxlength="${p.keep.length + p.missing + 4}" style="width:${p.keep.length + p.missing + 1.5}ch" autocomplete="off" spellcheck="false">`).join('');
+    stage(`<form class="cloze" id="d-form">${html}</form>` +
+      `<div class="hint">${it.blanks} blanks · complete each word (the first letters are given) · Enter when done` +
+      (D.mode === 'passage' ? ` · <a href="${esc(it.source)}" target="_blank" rel="noopener">source</a>` : '') + `</div>` +
+      `<div class="row"><button class="secondary" id="d-submit">Check</button><button class="secondary" id="d-mode">${D.mode === 'passage' ? 'Sentence mode' : 'Passage mode'}</button></div>`);
+    const inputs = [...$('d-form').querySelectorAll('input')];
+    inputs.forEach(i => { i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitCloze(false); } }); });
+    inputs[0].focus(); inputs[0].setSelectionRange(inputs[0].value.length, inputs[0].value.length);
+    $('d-submit').onclick = () => submitCloze(false);
+    $('d-mode').onclick = () => openDrill('read-and-complete', D.mode === 'passage' ? 'sentence' : 'passage');
+    countdown(it.seconds, 'Answer', () => submitCloze(true));
+  }
+  async function submitCloze(timedOut) {
+    if (!D.item || $('d-stage').hidden) return;
+    stopClock(); D.ms = Date.now() - D.startedAt;
+    const typed = [...$('d-form').querySelectorAll('input')].map(i => i.value.trim());
+    const r = await api(`/api/drill/read-and-complete/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, timed_out: timedOut }) });
+    let k = 0;
+    const text = D.item.pieces.map(p => typeof p === 'string' ? esc(p) : (() => {
+      const want = r.answers[k], got = typed[k++];
+      return got.toLowerCase() === want.toLowerCase() ? `<span class="ok">${esc(want)}</span>` : `<span class="bad">${esc(got || '·')}</span> <span class="want">${esc(want)}</span>`;
+    })()).join('');
+    resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.correct} of ${r.blanks} blanks${timedOut ? ' · time ran out' : ''} · ${fmt(Math.round(D.ms / 1000))}</span></div>` +
+      `<div class="text">${text}</div>` + addedLine(r.added) + backButtons());
+    wireResult(() => openDrill('read-and-complete', D.mode));
+  }
+
+  // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits.
+  function renderDictation(it) {
+    stage(`<audio id="d-audio" preload="auto" src="${it.audio_url}"></audio>` +
+      `<div class="row"><button class="primary" id="d-play">Play <span class="mono" id="d-plays">${it.plays_left} left</span></button></div>` +
+      `<textarea class="dict" id="d-typed" placeholder="Type the sentence you hear" autocomplete="off" spellcheck="false"></textarea>` +
+      `<div class="hint">${it.words} words · Enter when done</div>`);
+    const audio = $('d-audio');
+    $('d-play').onclick = () => {
+      if (D.plays >= it.plays_left) return;
+      D.plays += 1; audio.currentTime = 0; audio.play();
+      $('d-plays').textContent = `${it.plays_left - D.plays} left`;
+      if (D.plays >= it.plays_left) $('d-play').disabled = true;
+      $('d-typed').focus();
+    };
+    $('d-typed').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitDictation(false); } });
+    countdown(it.seconds, 'Listen and type', () => submitDictation(true));
+    $('d-play').click();
+  }
+  async function submitDictation(timedOut) {
+    if (!D.item || $('d-stage').hidden) return;
+    stopClock(); $('d-audio').pause(); D.ms = Date.now() - D.startedAt;
+    const typed = $('d-typed').value;
+    const r = await api(`/api/drill/listen-and-type/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, plays: D.plays, timed_out: timedOut }) });
+    const diff = r.diff.map(d => d.op === 'equal' ? `<span class="ok">${esc(d.ref.join(' '))}</span>`
+      : d.op === 'delete' ? `<span class="miss">${esc(d.ref.join(' '))}</span>`
+      : d.op === 'insert' ? `<span class="extra">${esc(d.typed.join(' '))}</span>`
+      : `<span class="bad">${esc(d.typed.join(' '))}</span> <span class="want">${esc(d.ref.join(' '))}</span>`).join(' ');
+    resultBox(`<div class="big"><b>${Math.round(r.score * 100)}%</b><span>${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}×${timedOut ? ' · time ran out' : ''}</span></div>` +
+      `<div class="text">${diff}</div><div class="note">Reference: <em>${esc(r.reference)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it), <span class="mono">grey</span> extra</div>` +
+      `<audio controls src="${D.item.audio_url}"></audio>` + addedLine(r.added) + backButtons());
+    wireResult(() => openDrill('listen-and-type'));
+  }
+
+  // Recording: MediaRecorder → practice/speaking/recordings/<attempt>.webm, played back on the result screen.
+  async function startRecording() {
+    D.chunks = [];
+    D.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    D.recorder = new MediaRecorder(D.stream, MediaRecorder.isTypeSupported('audio/webm') ? { mimeType: 'audio/webm' } : {});
+    D.recorder.ondataavailable = (e) => { if (e.data.size) D.chunks.push(e.data); };
+    D.recorder.start(1000);
+  }
+  function stopRecording() {
+    return new Promise((resolve) => {
+      const rec = D.recorder;
+      if (!rec || rec.state === 'inactive') { D.stream && D.stream.getTracks().forEach(t => t.stop()); D.recorder = D.stream = null; resolve(null); return; }
+      rec.onstop = () => { D.stream.getTracks().forEach(t => t.stop()); const blob = new Blob(D.chunks, { type: 'audio/webm' }); D.recorder = D.stream = null; resolve(blob); };
+      rec.stop();
+    });
+  }
+  async function uploadRecording(blob) {
+    if (!blob || !blob.size) return null;
+    const r = await fetch(`/api/drill/${D.task}/${encodeURIComponent(D.item.id)}/audio?attempt=${D.item.attempt}`, { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    return `/api/drill/${D.task}/${D.item.attempt}/recording`;
+  }
+  const speakingHint = (it) => it.min ? `Speak for at least ${it.min} s, up to ${it.seconds} s.` : `${it.seconds} seconds.`;
+  function renderReadAloud(it) {
+    stage(`<div class="prompt">${esc(it.sentence)}</div><div class="hint">Read the sentence aloud. Recording starts when you press the button and stops after ${it.seconds} seconds.</div>` +
+      `<div class="row"><button class="primary" id="d-record">Record</button></div>`);
+    $('d-phase').textContent = 'Read aloud'; $('d-clock').textContent = fmt(it.seconds);
+    $('d-record').onclick = () => answerPhase(it);
+  }
+  function renderSpeaking(it) {
+    const listen = D.task === 'listen-then-speak';
+    stage((it.photo_url ? `<img class="photo" src="${it.photo_url}" alt="">` : '') +
+      (listen ? `<audio id="d-audio" preload="auto" src="${it.audio_url}"></audio><div class="row"><button class="primary" id="d-play">Play <span class="mono" id="d-plays">${it.plays} left</span></button></div>`
+              : `<div class="prompt">${esc(it.prompt)}</div>`) +
+      `<div class="hint">${it.prep} seconds to prepare, then the recording starts by itself. ${speakingHint(it)}</div>`);
+    if (listen) {
+      $('d-play').onclick = () => {
+        if (D.plays >= it.plays) return;
+        D.plays += 1; $('d-audio').currentTime = 0; $('d-audio').play();
+        $('d-plays').textContent = `${it.plays - D.plays} left`;
+        if (D.plays >= it.plays) $('d-play').disabled = true;
+      };
+      $('d-play').click();
+    }
+    countdown(it.prep, 'Prepare', () => answerPhase(it));
+  }
+  async function answerPhase(it) {
+    try { await startRecording(); }
+    catch (e) { resultBox(`<div class="det">Microphone not available: ${esc(e.message)}</div><div class="actions"><button class="secondary" id="d-back">Back to start</button></div>`); wireResult(); return; }
+    D.startedAt = Date.now();
+    const listen = D.task === 'listen-then-speak';
+    stage((it.photo_url ? `<img class="photo" src="${it.photo_url}" alt="">` : '') +
+      (listen ? `<div class="hint">Answer what you heard.</div>` : `<div class="prompt">${esc(it.sentence || it.prompt)}</div>`) +
+      `<div class="row"><span class="rec"><i></i>Recording</span><button class="secondary" id="d-stop" ${it.min ? 'disabled' : ''}>Stop</button></div>` +
+      `<div class="hint">${speakingHint(it)}</div>`);
+    if (it.min) setTimeout(() => { const b = $('d-stop'); if (b) b.disabled = false; }, it.min * 1000);
+    $('d-stop').onclick = () => finishSpeaking(false);
+    countdown(it.seconds, 'Speak', () => finishSpeaking(true));
+  }
+  async function finishSpeaking(timedOut) {
+    if (!D.item || $('d-stage').hidden) return;
+    stopClock();
+    D.ms = Date.now() - D.startedAt;
+    const blob = await stopRecording();
+    let url = null, err = '';
+    try { url = await uploadRecording(blob); } catch (e) { err = e.message; }
+    const it = D.item;
+    resultBox(`<div class="eyebrow">Listen back · ${fmt(Math.round(D.ms / 1000))}${timedOut ? ' · time ran out' : ''}</div>` +
+      (url ? `<audio controls src="${url}"></audio>` : `<div class="note">No recording saved${err ? ': ' + esc(err) : ''}.</div>`) +
+      (it.photo_url ? `<img class="photo" src="${it.photo_url}" alt="">` : '') +
+      `<div class="text">${esc(it.sentence || it.prompt)}</div>` + ratingForm() + backButtons());
+    wireRating(() => openDrill(D.task));
+  }
+
+  // Writing: countdown, live word count against the minimum, autosave every 10 s and at the end; Interactive Writing runs part 2 on the follow-up.
+  function renderWriting(it, part) {
+    part = part || 1;
+    const prompt = part === 2 ? it.follow_up : it.prompt, seconds = part === 2 ? it.seconds2 : it.seconds;
+    stage((it.photo_url && part === 1 ? `<img class="photo" src="${it.photo_url}" alt="">` : '') +
+      `<div class="prompt">${esc(prompt)}</div>` +
+      `<textarea id="d-text" placeholder="Write here" spellcheck="false"></textarea>` +
+      `<div class="row"><span class="wc" id="d-wc"></span><span class="note" id="d-saved"></span><button class="secondary" id="d-finish">${part === 1 && it.seconds2 ? 'Next part' : 'Finish'}</button></div>` +
+      `<div class="hint">${it.min ? `At least ${it.min} words.` : ''} ${fmt(seconds)} on the clock; the draft is saved every 10 seconds.</div>`);
+    const ta = $('d-text');
+    const count = () => {
+      const n = wordCount(ta.value);
+      $('d-wc').textContent = `${n} word${n === 1 ? '' : 's'}${it.min ? ` · minimum ${it.min}` : ''}`;
+      $('d-wc').className = 'wc ' + (it.min ? (n >= it.min ? 'ok' : 'short') : '');
+      $('d-finish').disabled = it.min ? n < it.min : n === 0;
+      if (part === 2) D.text2 = ta.value; else D.text = ta.value;
+    };
+    ta.oninput = count; count(); ta.focus();
+    if (part === 1) D.startedAt = Date.now();
+    const save = async () => {
+      try { await api(`/api/drill/${D.task}/${encodeURIComponent(it.id)}/draft`, { method: 'POST', body: JSON.stringify({ attempt: it.attempt, text: D.text, text2: D.text2, seconds: Math.round((Date.now() - D.startedAt) / 1000) }) });
+            $('d-saved').textContent = `saved ${new Date().toLocaleTimeString('en-GB')}`; }
+      catch (e) { $('d-saved').textContent = 'autosave failed: ' + e.message; }
+    };
+    const end = async (timedOut) => {
+      stopClock(); await save();
+      if (part === 1 && it.seconds2) renderWriting(it, 2); else finishWriting(timedOut);
+    };
+    $('d-finish').onclick = () => end(false);
+    countdown(seconds, part === 2 ? 'Part 2' : 'Write', () => end(true));
+    D.autosave = setInterval(save, 10000);
+  }
+  function finishWriting(timedOut) {
+    D.ms = Date.now() - D.startedAt;
+    const it = D.item, n = wordCount(D.text) + (it.seconds2 ? wordCount(D.text2) : 0);
+    resultBox(`<div class="eyebrow">Read it back · ${n} words${it.min ? ` (minimum ${it.min})` : ''} · ${fmt(Math.round(D.ms / 1000))}${timedOut ? ' · time ran out' : ''}</div>` +
+      `<div class="note">${esc(it.prompt)}</div><div class="text">${esc(D.text) || '<em>nothing written</em>'}</div>` +
+      (it.seconds2 ? `<div class="note">${esc(it.follow_up)}</div><div class="text">${esc(D.text2) || '<em>nothing written</em>'}</div>` : '') +
+      ratingForm() + backButtons());
+    wireRating(() => openDrill(D.task));
+  }
+
+  // The self-rating (four 1–5 lines → one number, the mean rounded half up) and the "words I lacked" box.
+  const RATING = [['task', 'Task fulfilled'], ['fluency', 'Fluency'], ['vocabulary', 'Vocabulary range'], ['grammar', 'Grammar']];
+  const ratingForm = () =>
+    `<div class="section"><div class="eyebrow">Rate yourself</div><div class="rating">` +
+    RATING.map(([k, label], i) => `<label>${label}</label><span class="scale" data-line="${i}">${[1, 2, 3, 4, 5].map(v => `<button type="button" data-v="${v}">${v}</button>`).join('')}</span>`).join('') +
+    `</div></div><div class="section"><div class="eyebrow">Words I lacked</div><input class="lacked" id="d-lacked" placeholder="comma-separated: words you needed and did not have" autocomplete="off">` +
+    `<div class="note">Each goes to my-words with this prompt as the note; a word outside the list is kept as an extra word.</div></div>` +
+    `<div class="actions"><button class="primary" id="d-save">Save attempt</button><span class="note" id="d-saved-line"></span></div>`;
+  function wireRating(next) {
+    $('d-result').querySelectorAll('.scale').forEach(scale => scale.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      D.rating[+scale.dataset.line] = +b.dataset.v;
+      scale.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    }));
+    $('d-save').onclick = async () => {
+      if (D.rating.some(v => !v)) { $('d-saved-line').textContent = 'Rate all four lines first.'; return; }
+      $('d-save').disabled = true;
+      try {
+        const body = { attempt: D.item.attempt, ms: D.ms, timed_out: false, rating: D.rating, lacked: $('d-lacked').value, text: D.text, text2: D.text2 };
+        const r = await api(`/api/drill/${D.task}/${encodeURIComponent(D.item.id)}`, { method: 'POST', body: JSON.stringify(body) });
+        $('d-saved-line').innerHTML = `Saved · self-rating <b>${r.self}</b>${r.file ? ' · ' + esc(r.file) : ''} ` + addedLine(r.added);
+        D.item = null;
+      } catch (e) { $('d-saved-line').textContent = e.message; $('d-save').disabled = false; }
+    };
+    wireResult(next);
+  }
+  function wireResult(next) {
+    const n = $('d-next'), b = $('d-back');
+    if (n) n.onclick = () => next && next();
+    if (b) b.onclick = async () => { stopClock(); await stopRecording(); D.item = null; show('start'); init(); };
+  }
+  function route() {
+    const m = location.hash.match(/^#drill\/([a-z-]+)(?:\/(passage))?$/);
+    if (m) openDrill(m[1], m[2]);
+    else if (location.hash === '#learn') openLearn();
+  }
+
   // ---- wiring
+  $('drills').addEventListener('click', (e) => { const b = e.target.closest('button.drill-btn'); if (b) openDrill(b.dataset.task); });
   $('btn-start').onclick = () => start();
   $('btn-retest').onclick = () => start(retest && retest.subband);
   $('r-misses').addEventListener('click', (e) => { const b = e.target.closest('button.pin'); if (b) pin(b); });
@@ -452,8 +783,8 @@
     else if (screen === 'between' && k === ' ') { e.preventDefault(); nextBlock(); }
     else if (screen === 'start' && (k === ' ' || k === 'enter')) { e.preventDefault(); start(); }
   });
-  window.addEventListener('hashchange', () => { if (location.hash === '#learn') openLearn(); });
-  init().then(() => { if (location.hash === '#learn') openLearn(); });
+  window.addEventListener('hashchange', route);
+  init().then(route);
 })();
 </script>
 </body>
