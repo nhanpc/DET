@@ -1,1 +1,10 @@
-date,attempt,task,item,subband,seconds,timed_out,score,self,words,errors,file
+date,attempt,task,item,subband,seconds,timed_out,score,self,words,errors,file,theta,b,events
+2026-09-17,2026-09-17_183427_f579,listen-and-type,integral.2,4k-b,13,0,0.2105,,6,a>i;local>lead;motion>dsf;keepeth>dsf;bodies>eee;integral>,,8.1313,8.562,local:vocabulary|motion:vocabulary|body:vocabulary|integral:vocabulary
+2026-09-17,2026-09-17_183636_c492,fill-in-the-blanks,contingent.1.fb,4k-b,6,0,0.0,,1,contingent>content,,8.1082,7.798,contingent:vocabulary
+2026-09-17,2026-09-17_183647_6c8f,fill-in-the-blanks,integral.2.fb,4k-b,9,0,0.0,,1,integral>internal,,8.0139,8.562,integral:vocabulary
+2026-09-17,2026-09-17_183658_22da,fill-in-the-blanks,stumble.2.fb,4k-b,6,0,0.0,,1,stumbled>study,,7.9674,7.8428,stumble:vocabulary
+2026-09-17,2026-09-17_183706_7614,fill-in-the-blanks,vigorous.2.fb,4k-a,8,0,0.0,,1,vigorous>vigin,,7.8908,7.788,vigorous:vocabulary
+2026-09-17,2026-09-17_183717_1a7f,fill-in-the-blanks,toxic.1.fb,4k-b,10,0,0.0,,1,toxic>total,,7.8186,7.6532,toxic:vocabulary
+2026-09-17,2026-09-17_183728_67ee,fill-in-the-blanks,enough.1.fb,1k-a,10,0,0.0,,1,enough>en,,7.7466,8.17,enough:vocabulary
+2026-09-17,2026-09-17_183741_8d04,fill-in-the-blanks,example.1.fb,2k-a,8,0,1.0,,1,,,7.703,7.5004,example:hit
+2026-09-17,2026-09-17_183752_bf23,fill-in-the-blanks,instrument.2.fb,2k-a,13,0,0.0,,1,instrument>instruction,,7.7539,7.436,instrument:vocabulary
