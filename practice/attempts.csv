@@ -8,3 +8,4 @@ date,attempt,task,item,subband,seconds,timed_out,score,self,words,errors,file,th
 2026-09-17,2026-09-17_183728_67ee,fill-in-the-blanks,enough.1.fb,1k-a,10,0,0.0,,1,enough>en,,7.7466,8.17,enough:vocabulary
 2026-09-17,2026-09-17_183741_8d04,fill-in-the-blanks,example.1.fb,2k-a,8,0,1.0,,1,,,7.703,7.5004,example:hit
 2026-09-17,2026-09-17_183752_bf23,fill-in-the-blanks,instrument.2.fb,2k-a,13,0,0.0,,1,instrument>instruction,,7.7539,7.436,instrument:vocabulary
+2026-09-17,2026-09-17_185806_fd40,listen-and-type,vigorous.2,4k-a,60,1,0.0,,12,a>;vigorous>;old>;man>;who>;spent>;half>;of>;his>;day>;on>;horseback>,,7.6841,7.788,vigorous:vocabulary|old:hearing|man:hearing|spend:hearing|half:hearing|day:hearing
