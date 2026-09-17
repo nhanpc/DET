@@ -192,7 +192,7 @@ def listening(attempts: list[dict], today: date, task: str = "listen-and-type", 
 def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], today: Optional[date] = None,
           mocks: Optional[list[dict]] = None, b_of: Optional[dict[str, float]] = None,
           attempts: Optional[list[dict]] = None, index: Optional[dict[str, dict]] = None,
-          my_words: Optional[list[dict]] = None) -> dict:
+          my_words: Optional[list[dict]] = None, plan: Optional[dict] = None) -> dict:
     """The report: `theta_test` from the last reliable session (learn.theta_history on `sessions`, word
     difficulties from `b_of` = Bank.b, else the middle of each block's sub-band), `theta`/`se` = that posterior
     updated by the scored drill attempts since it (`attempts` = practice/attempts.csv rows, #16) — level,
@@ -200,8 +200,9 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
     the pooled sub-band rows, the word-status counts (drill events merged, `index` for their sub-band), the
     listening line, the chart series, the priority pool (`pool`: learn.pool_counts of learn.priority_pool on
     `my_words` = every my-words row, plus `done` by cards / by practice; #13, needs `index`) and the mock tests
-    (mocks_report() on `mocks`, the store.load_mocks() rows; None = no rows). `anki` stays None;
-    scripts/report.py fills it from anki_stats()."""
+    (mocks_report() on `mocks`, the store.load_mocks() rows; None = no rows) and the schedule (`plan` = a
+    plan.today_plan() dict, #19; None = no plan file). `anki` stays None; scripts/report.py fills it from
+    anki_stats()."""
     by = {sb.name: sb for sb in subbands}
     attempts, my_words = attempts or [], my_words or []
     scores = learn.subband_scores(sessions, subbands)
@@ -234,7 +235,7 @@ def build(sessions: list[dict], levels: list[dict], subbands: list[Subband], tod
             "pool": {**learn.pool_counts(learn.priority_pool(stats, learn.open_my_words(my_words), index or {}, front)),
                      "done": learn.done_counts(my_words)},
             "series": level_series(history, by), "anki": None,
-            "mocks": mocks_report(mocks or [], history, today)}
+            "mocks": mocks_report(mocks or [], history, today), "plan": plan}
 
 
 def det_line(det: int, rng) -> str:
@@ -354,9 +355,22 @@ def mock_lines(m: dict, frontier: str) -> list[str]:
                  f"- Focus next week: {focus} ({f['reason']})", f"- Booking: {verdict}"]
 
 
+def plan_lines(p: Optional[dict]) -> list[str]:
+    """The *Plan* section (#19): the week, the streak, the slide and the projected date, then the gate table."""
+    if not p:
+        return ["_No plan yet: `python3 scripts/plan.py init --start <Monday>`._"]
+    state = "on track" if p["on_track"] else f"late by {p['slide']} wk"
+    head = (f"Week **{p['week']}** of {p['weeks']} (from {p['start']}) · streak **{p['streak']}** · {state} · "
+            f"projected test date **{p['projected']}**" + ("" if p["on_track"] else f" (target {p['target']})"))
+    rows = [[g["subband"], g["week"], g["due_now"] + (f" (was {g['due']})" if g["due_now"] != g["due"] else ""),
+             f"passed {g['passed_on']}" if g["passed_on"] else g["status"]] for g in p["gates"]]
+    return [head, "", table(["Gate", "Week", "By", "Status"], rows)]
+
+
 def render_markdown(r: dict, subbands: list[Subband]) -> str:
     """Everything between the markers, HEADING first, in the order fixed in #9 (*Listening*, #16, after
-    *Words*), then the *Mock tests* section of #11 after **Anki**. Ends with a newline."""
+    *Words*), then the *Plan* section of #19 after **Anki** and the *Mock tests* section of #11 last. Ends
+    with a newline."""
     md = [HEADING, GENERATED.format(date=r["generated"]), "", "### Now", "", now_line(r), "", "### Sub-bands", ""]
     pct = lambda x: f"{100 * x:.0f} %" if x is not None else DASH                          # noqa: E731
     md.append(table(["Sub-band", "CEFR", "DET", "Blocks", "Known", "Score", "Status"],
@@ -382,6 +396,7 @@ def render_markdown(r: dict, subbands: list[Subband]) -> str:
         md.append(table(["Sub-band", "Cards", "Mature", f"Reviews {REVIEW_DAYS}d", "Lapses"],
                         [[a["subband"], a["cards"], a["mature"], a["reviews"], a["lapses"]] for a in r["anki"]])
                   if r["anki"] else "_No cards tagged with a sub-band yet._")
+    md += ["", "### Plan", "", *plan_lines(r.get("plan"))]
     md += ["", "### Mock tests", "", *mock_lines(r["mocks"], r["frontier"])]
     return "\n".join(md) + "\n"
 

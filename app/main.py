@@ -14,7 +14,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import drills, irt, learn, progress, store, textdiff, tts
+from . import drills, irt, learn, plan, progress, store, textdiff, tts
 from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, WINDOW, Session
 from .bank import VOCAB, Bank, load_subbands, read_csv
 
@@ -130,7 +130,21 @@ def config():
             "theta": st["theta"], "se": st["se"], "det_estimate": st["det_estimate"], "det_range": st["det_range"],
             "theta_test": st["theta_test"], "theta_listen": st["theta_listen"], "se_listen": st["se_listen"],
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None,
-            "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"]), "pool": learn.pool_counts(priority(st)[2])}
+            "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"]), "pool": learn.pool_counts(priority(st)[2]),
+            "plan": plan_view(st)}
+
+
+def plan_view(st: dict) -> Optional[dict]:
+    """The *Today* card (issue #19): plan.today_plan over vocab/plan.csv, the θ history, the drill attempts, the
+    finished test blocks and the *Words done* ticks; None without a plan file."""
+    return plan.today_plan(plan.load_plan(), st["thetas"], SUBBANDS, st["attempts"], store.load_results(), plan.load_log())
+
+
+@app.post("/api/plan/words")
+def plan_words():
+    """Tick *Words done* for today (idempotent) and return the plan as /api/config would."""
+    plan.append_log(date.today())
+    return plan_view(current_state())
 
 
 @app.post("/api/session")
@@ -207,8 +221,9 @@ def progress_page():
     """The report dict scripts/report.py renders into vocab/progress.md (no Anki), mock tests included;
     a malformed mocks.csv row is a 422 naming the line (#11), the same message the script prints."""
     try:
-        return progress.build(store.load_sessions(), store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b,
-                              attempts=store.load_attempts(), index=BANK.index, my_words=learn.load_my_words())
+        st = current_state()
+        return progress.build(st["sessions"], store.load_levels(), SUBBANDS, mocks=store.load_mocks(), b_of=BANK.b,
+                              attempts=st["attempts"], index=BANK.index, my_words=learn.load_my_words(), plan=plan_view(st))
     except ValueError as e:
         raise HTTPException(422, f"vocab/tests/mocks.csv: {e}")
 

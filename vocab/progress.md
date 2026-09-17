@@ -121,6 +121,18 @@ xychart-beta
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1k-a | 1k-b | 2k-a | 2k-b | 3k-a | 3k-b | 4k-a | 4k-b | 5k-a | 5k-b | 6k-a | 6k-b |
 
+### Plan
+
+Week **0** of 24 (from 2026-09-21) · streak **0** · on track · projected test date **2027-03-03**
+
+| Gate | Week | By | Status |
+|---|---|---|---|
+| 4k-a | 3 | 2026-10-11 | passed 2026-09-15 |
+| 4k-b | 8 | 2026-11-15 | open |
+| 5k-a | 13 | 2026-12-20 | open |
+| 5k-b | 18 | 2027-01-24 | open |
+| 6k-a | 23 | 2027-02-28 | open |
+
 ### Mock tests
 
 _No mock yet — take the free practice test and type it as row 1 of vocab/tests/mocks.csv._

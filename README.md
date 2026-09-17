@@ -104,8 +104,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 The app is one page with a header on every screen (issue #18): **Practise**
-is the home — your level, the nine drills as cards, the level test at the end —
-and **Words** is the study list. Every screen has a hash (`#home`, `#learn`,
+is the home — your level, the *Today* card of the schedule, the nine drills as
+cards, the level test at the end — and **Words** is the study list. Every screen has a hash (`#home`, `#learn`,
 `#test`, `#result`, `#drill/<task>`), so the browser's Back and Forward move
 between screens and a link can open any of them; Escape leaves Words or a
 drill for the home page.
@@ -130,6 +130,18 @@ CAT's way of starting at the frontier; 6.0, the middle of the scale, before
 the first test), so the *Re-test* button and *Start test* do the same thing.
 Words shown in the last 30 days are not drawn again. An unreliable test
 neither moves the date nor becomes the prior.
+
+## The schedule
+
+Twenty minutes a day, six days a week, five sub-band gates to 2027-03-03
+(issue #19): words 10 min, then one drill 10 min — dictation and cloze on
+alternate days, the level test on Saturday, Sunday off. The home page's
+*Today* card shows the two rows with their ticks, the streak, the next gate
+and the projected test date; a gate week that ends unpassed slides every later
+gate and the date by a week. `vocab/plan.csv` holds the gates
+(`scripts/plan.py init --start <Monday>`), `vocab/plan-log.csv` the *Words
+done* ticks, and `scripts/plan.py` prints where the plan stands. The rules,
+the gate table and the worked example: [docs/schedule.md](docs/schedule.md).
 
 ## What to learn
 
@@ -207,9 +219,11 @@ Only the text between `<!-- generated:start -->` and `<!-- generated:end -->`
 changes; everything above the markers (target date, outside vocabulary
 estimates, the baseline rows) is hand-written and never touched. The same
 numbers come back from `GET /api/progress`, and the *What to learn* page
-draws the level chart once there are two or more points. Mock DET scores
-(`vocab/tests/mocks.csv`) are rendered into the same block as a *Mock tests*
-section — see *Weekly cycle* below.
+draws the level chart once there are two or more points. The schedule
+(`vocab/plan.csv`) is rendered into the same block as a *Plan* section — week,
+streak, the gate table with any slide and the projected date — and mock DET
+scores (`vocab/tests/mocks.csv`) as a *Mock tests* section — see *Weekly
+cycle* below.
 
 The invented words come from the British Lexicon Project (nonwords that native
 speakers reject ≥ 95 % of the time), picked per sub-band so their lengths
@@ -300,9 +314,10 @@ flowchart LR
 
 ## Weekly cycle
 
-Phase 6 (issue #11) ties the pieces above into one routine: Monday level test
-→ Anki batch → daily drills → a full DET practice test every 1–2 weeks →
-Sunday review. The practice test is the one thing typed by hand: one row of
+Phase 6 (issue #11) ties the pieces above into one routine, which the
+schedule of [docs/schedule.md](docs/schedule.md) fixes in the calendar:
+Saturday level test → words and one drill a day → a full DET practice test
+after each gate → Sunday off. The practice test is the one thing typed by hand: one row of
 `vocab/tests/mocks.csv` (`date, source, overall, literacy, comprehension,
 conversation, production, weakest, notes`; schema and the low-end rule in
 [vocab/tests/README.md](vocab/tests/README.md)). The free practice test gives
@@ -346,6 +361,7 @@ DET/
 │   ├── sentences.md             # where drill sentences come from; a sentence's band is its target word's, its difficulty b_text is computed
 │   ├── det-adaptive.md          # the θ / b scale: item difficulty, Rasch + EAP, level, frontier, DET anchors
 │   ├── anki.md                  # the "DET family" note type: fields, both card templates, import steps
+│   ├── schedule.md              # 20 min a day, five sub-band gates, the slide rule, the Today card (issue #19)
 │   └── implementation-phases.md # build plan for this repo
 ├── data/
 │   ├── raw/                     # Nation word lists + SOURCES.md (URL, date, licence)
@@ -361,12 +377,13 @@ DET/
 │   ├── overrides.csv            # hand-simplified definition / example per family; never written by a script
 │   ├── decks/                   # Anki exports (Learn page, scripts/export_anki.py): one note, two cards per family
 │   ├── tests/                   # level-test history: levels.csv, results.csv, misses.csv, sessions/*.json; mocks.csv (hand-typed)
+│   ├── plan.csv                 # the schedule's gates: subband, week, due (scripts/plan.py init); plan-log.csv = the Words-done ticks
 │   └── progress.md              # hand-written baseline above the markers; scripts/report.py rewrites the block between them
 ├── app/                         # level-test app: FastAPI backend + static/index.html
 ├── tests/                       # pytest: simulated learners, API round-trip
 ├── design/                      # UI design canvases (artboard sources)
 ├── practice/                    # task drills (issue #10): attempts.csv, read-and-complete/ (passages/ — the 440-passage bank, #17 — and the cloze cache), listen-and-type/ (sentence + audio cache), speaking/ (prompts, photos, recordings), writing/ (prompts, drafts), interactive/README.md
-└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py, passages.py (+ topics.txt, its search terms)
+└── scripts/                     # fetch_raw.sh, extract_raw.py, build_bands.py, build_dict.py, build_pseudowords.py, audit_data.py, export_anki.py, report.py, plan.py, passages.py (+ topics.txt, its search terms)
 ```
 
 See [docs/implementation-phases.md](docs/implementation-phases.md) for the

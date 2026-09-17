@@ -59,6 +59,20 @@
   .cta { display: flex; flex-direction: column; align-items: stretch; gap: 10px; min-width: 240px; }
   .cta .note { text-align: center; }
   @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } .test-card { grid-template-columns: 1fr; } #start .rel { align-items: flex-start; } }
+  /* the Today card (issue #19): the plan for today, a tick per row, the streak and the next gate */
+  .today { gap: 10px; padding: 16px 20px; border-color: var(--accent-2); }
+  .today .thead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .today .tstate { font: 500 13px var(--mono); color: var(--text-2); } .today .tstate b { font-weight: 500; }
+  .today .tstate b.ok { color: var(--green); } .today .tstate b.bad { color: var(--red); }
+  .today .tlist { display: flex; flex-direction: column; gap: 6px; }
+  .today .trow { display: flex; align-items: center; gap: 12px; min-height: 36px; }
+  .today .tick { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); color: transparent; font-size: 15px; font-weight: 600; }
+  .today .tick.on { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .today button.tick:hover:not(.on) { border-color: var(--accent); color: var(--border-2); }
+  .today .tlabel { flex: 1; font-size: 16px; } .today .tlabel.on { color: var(--muted); }
+  .today .go { height: 34px; padding: 0 14px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); color: var(--accent); font-size: 14px; font-weight: 500; white-space: nowrap; }
+  .today .go:hover { background: var(--bg); }
+  .today .foot { display: flex; gap: 6px 18px; flex-wrap: wrap; } .today .foot b { font-weight: 500; color: var(--text-2); }
 
   /* test */
   #test { flex: 1; display: flex; flex-direction: column; }
@@ -211,12 +225,21 @@
   </div>
   <div class="section" id="drills">
     <div class="eyebrow">Practise</div>
+    <div class="card today" id="today" hidden>
+      <div class="thead"><span class="eyebrow">Today · <span id="t-when"></span></span><span class="tstate" id="t-state"></span></div>
+      <div class="tlist" id="t-rows">
+        <div class="trow"><button class="tick" id="t-words-tick" title="Mark the words done">✓</button><span class="tlabel" id="t-words-label"></span><button class="go" id="t-words-go">Words →</button></div>
+        <div class="trow"><span class="tick" id="t-drill-tick">✓</span><span class="tlabel" id="t-drill-label"></span><button class="go" id="t-drill-go">Start →</button></div>
+      </div>
+      <div class="note" id="t-off" hidden>Sunday — the day off. The streak keeps.</div>
+      <div class="note foot" id="t-foot"></div>
+    </div>
     <div class="cards">
       <div class="card"><div class="eyebrow">Vocabulary</div><div class="btns" id="d-vocab"></div><div class="note">Passages, blanks and dictation near your θ — the words you missed first, then <span id="d-frontier"></span>.</div></div>
       <div class="card"><div class="eyebrow">Speaking</div><div class="btns" id="d-speak"></div><div class="note">Recorded, then rated by you on four lines.</div></div>
       <div class="card"><div class="eyebrow">Writing</div><div class="btns" id="d-write"></div><div class="note">Timed, autosaved, then rated by you.</div></div>
     </div>
-    <div class="note">Routine: one speaking and one writing drill a day; cloze, fill-in and dictation 3× a week, 10 items each. Partial credit moves θ; errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
+    <div class="note">Every attempt moves θ (partial credit counts); errors and words you lacked go to my-words. Speaking and writing are for the DET practice test after each gate. Saved to practice/attempts.csv.</div>
   </div>
   <div class="section">
     <div class="eyebrow">Level test</div>
@@ -400,6 +423,7 @@
       $('btn-retest').textContent = `Re-test ${retest.subband}`;
     }
     renderDrills(c.tasks, c.today, c.frontier, c.pool);
+    renderPlan(c.plan);
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;
@@ -568,6 +592,35 @@
     $('d-write').innerHTML = WRITING.map(btn).join('');
     const n = Object.values(today).reduce((a, b) => a + b, 0);
     $('d-today').textContent = n ? `${n} attempt${n === 1 ? '' : 's'} today` : 'nothing yet today';
+  }
+  // The Today card (issue #19): what the plan says for today, ticked from the files (drills, test blocks) or by hand (words).
+  const day = (iso) => new Date(iso + 'T00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const tick = (el, on, label) => { el.classList.toggle('on', on); label.classList.toggle('on', on); };
+  function renderPlan(p) {
+    $('today').hidden = !p;
+    if (!p) return;
+    $('t-when').textContent = day(new Date().toISOString().slice(0, 10));
+    const wk = p.week < 1 ? `starts ${day(p.start)}` : p.week > p.weeks ? `week ${p.week} · past the plan` : `week ${p.week} of ${p.weeks}`;
+    $('t-state').innerHTML = `${wk} · <b class="${p.on_track ? 'ok' : 'bad'}">${p.on_track ? 'on track' : `late by ${p.slide} wk`}</b>`;
+    $('t-rows').hidden = p.off; $('t-off').hidden = !p.off;
+    tick($('t-words-tick'), p.words_done, $('t-words-label'));
+    $('t-words-label').textContent = `Words · ${p.words_min} min`;
+    $('t-words-tick').disabled = p.words_done;
+    const go = $('t-drill-go');
+    if (p.test_day) {
+      tick($('t-drill-tick'), p.test_done, $('t-drill-label'));
+      $('t-drill-label').textContent = 'Level test · replaces the drill' + (p.test_done ? ' · done' : '');
+      go.textContent = retest ? `Re-test ${retest.subband} →` : 'Start test →';
+      go.onclick = () => start();
+    } else {
+      tick($('t-drill-tick'), p.drill_done > 0, $('t-drill-label'));
+      $('t-drill-label').textContent = `${TASK_NAMES[p.drill]} · ${p.drill_min} min · ${p.drill_done} done`;
+      go.textContent = 'Start →';
+      go.onclick = () => openDrill(p.drill);
+    }
+    const left = (iso) => { const d = Math.round((new Date(iso + 'T00:00') - new Date(new Date().toDateString())) / 864e5); return d < 0 ? `${-d} day${d === -1 ? '' : 's'} ago` : d < 7 ? `in ${d} day${d === 1 ? '' : 's'}` : `in ${Math.ceil(d / 7)} wk`; };
+    const gate = p.next ? `gate <b>${p.next.subband}</b> by ${day(p.next.due_now)} (${left(p.next.due_now)})` : 'every gate passed';
+    $('t-foot').innerHTML = `<span>streak <b>${p.streak}</b></span><span>${gate}</span><span>projected <b>${p.projected}</b>${p.on_track ? '' : ` (target ${p.target})`}</span>`;
   }
   const wordCount = (t) => (t.match(/[A-Za-z0-9]+(?:['’][A-Za-z]+)*/g) || []).length;
   function stopClock() { clearInterval(D.timer); D.timer = null; clearInterval(D.autosave); D.autosave = null; }
@@ -892,6 +945,8 @@
 
   // ---- wiring
   $('drills').addEventListener('click', (e) => { const b = e.target.closest('button.drill-btn'); if (b) openDrill(b.dataset.task); });
+  $('t-words-go').onclick = openLearn;
+  $('t-words-tick').onclick = () => api('/api/plan/words', { method: 'POST' }).then(renderPlan);
   $('btn-start').onclick = () => start();
   $('btn-retest').onclick = () => start();                     // the prior is the last θ: block 1 sits at the frontier
   $('r-misses').addEventListener('click', (e) => { const b = e.target.closest('button.pin'); if (b) pin(b); });

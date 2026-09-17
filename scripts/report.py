@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Rewrite the generated block of vocab/progress.md from the level-test history (app.progress, issue nhanpc/DET#9)
-and the hand-typed mock tests in vocab/tests/mocks.csv (issue #11: chart, table, focus and the booking verdict).
+and the hand-typed mock tests in vocab/tests/mocks.csv (issue #11: chart, table, focus and the booking verdict),
+plus the schedule of vocab/plan.csv (issue #19: gates, slide, projected date).
 
     python3 scripts/report.py                       # vocab/tests/ → vocab/progress.md, prints the Now line
     python3 scripts/report.py --print               # the generated Markdown on stdout, nothing written
@@ -24,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import learn, progress, store, textdiff              # noqa: E402  (after the sys.path line)
+from app import learn, plan, progress, store, textdiff        # noqa: E402  (after the sys.path line)
 from app.bank import VOCAB, Bank, load_subbands, read_csv           # noqa: E402
 
 PROGRESS = VOCAB / "progress.md"
@@ -58,8 +59,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     try:
         bank = Bank()
+        attempts = store.load_attempts()
+        today = plan.today_plan(plan.load_plan(), learn.theta_history(sessions, subbands, bank.b), subbands, attempts,
+                                store.load_results(), plan.load_log())
         report = progress.build(sessions, levels, subbands, mocks=store.load_mocks(), b_of=bank.b,
-                                attempts=store.load_attempts(), index=bank.index, my_words=learn.load_my_words())
+                                attempts=attempts, index=bank.index, my_words=learn.load_my_words(), plan=today)
     except ValueError as e:
         path = store.MOCKS.relative_to(ROOT) if store.MOCKS.is_relative_to(ROOT) else store.MOCKS
         print(f"{path}: {e} — nothing written", file=sys.stderr)
