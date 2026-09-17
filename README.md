@@ -103,6 +103,13 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pytest -q           # simulated learners for every sub-band
 ```
 
+The app is one page with a header on every screen (issue #18): **Practise**
+is the home — your level, the nine drills as cards, the level test at the end —
+and **Words** is the study list. Every screen has a hash (`#home`, `#learn`,
+`#test`, `#result`, `#drill/<task>`), so the browser's Back and Forward move
+between screens and a link can open any of them; Escape leaves Words or a
+drill for the home page.
+
 Keys: `Y` = real word, `N` = not a word, `Space` = next block. The result
 page shows the level, `θ ± se`, the frontier, the estimated DET score with its
 range, the path (`θ` after each block), the block scores pooled per sub-band
@@ -126,7 +133,8 @@ neither moves the date nor becomes the prior.
 
 ## What to learn
 
-*What to learn* (start page, result page, or `http://localhost:8000/#learn`)
+*Words* in the header (also *What to learn next* on the result page, or
+`http://localhost:8000/#learn`)
 reads the whole history and turns it into a study list (issue #6):
 
 - **Frontier** = the sub-band containing your ability `θ` (from the last
@@ -210,7 +218,7 @@ mirror that sub-band's headwords: `vocab/pseudowords.csv`.
 ## Practise the tasks
 
 Every DET task type as a timed drill in the same app (issue #10, Phase 5):
-*Practise the tasks* on the start page, or `#drill/<task>` — schemas and the
+the *Practise* cards on the home page, or `#drill/<task>` — schemas and the
 rules per drill in [practice/README.md](practice/README.md), the real clock
 values in [docs/det-format.md](docs/det-format.md).
 

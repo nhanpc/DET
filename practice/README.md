@@ -1,7 +1,7 @@
 # Task drills
 
 Every DET task type as a timed drill inside the app (issue #10, Phase 5):
-open `http://localhost:8000`, pick a task under *Practise the tasks*, or go
+open `http://localhost:8000`, pick a task from the *Practise* cards, or go
 straight to `#drill/<task>`. The real DET clock runs
 ([docs/det-format.md](../docs/det-format.md)); every attempt is one row of
 `attempts.csv`, every draft and recording is kept under its attempt id, and

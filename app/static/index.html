@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vocabulary level test</title>
+<title>DET 120</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap">
 <style>
@@ -19,7 +19,21 @@
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--sans); }
   button { font: inherit; cursor: pointer; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  main { max-width: 1100px; min-height: 100vh; margin: 0 auto; display: flex; flex-direction: column; padding-inline: 16px; }
+  main { max-width: 1100px; min-height: calc(100vh - 56px); margin: 0 auto; display: flex; flex-direction: column; padding-inline: 16px; }
+
+  /* header: the same on every screen (issue #18) — the brand goes home, two links, the level chip, a crumb for where you are */
+  .top { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .top .in { max-width: 1100px; margin: 0 auto; height: 56px; padding-inline: 16px; display: flex; align-items: center; gap: 24px; }
+  .top .brand { font: 500 18px var(--serif); color: var(--text); text-decoration: none; letter-spacing: -.01em; white-space: nowrap; }
+  .top nav { display: flex; align-items: center; gap: 4px; }
+  .top nav a { display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; color: var(--text-2); font-size: 15px; font-weight: 500; text-decoration: none; }
+  .top nav a:hover { background: var(--bg); } .top nav a.on { background: var(--bg); color: var(--text); }
+  .top .crumb { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--muted); min-width: 0; }
+  .top .crumb b { font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top .crumb .arrow { color: var(--border-2); }
+  .top .status { margin-left: auto; font: 500 13px var(--mono); color: var(--text-2); white-space: nowrap; }
+  .top .status b { font-weight: 500; color: var(--text); }
+  @media (max-width: 760px) { .top .in { gap: 12px; } .top .status { display: none; } .top .crumb { display: none; } }
   [hidden] { display: none !important; }
 
   .eyebrow { font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -28,17 +42,23 @@
   .key { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border-2); border-bottom-width: 3px; border-radius: 6px; background: var(--surface); font: 500 14px var(--mono); }
   .note { font-size: 13px; color: var(--muted); }
 
-  /* start */
-  #start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding-block: 64px; }
-  #start .intro { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 560px; text-align: center; }
-  #start h1 { margin: 0; font: 500 44px/1.15 var(--serif); letter-spacing: -.01em; }
-  #start p { margin: 0; font-size: 18px; color: var(--text-2); text-wrap: pretty; }
-  .facts { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-  .fact { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; min-width: 160px; }
-  .fact b { font-size: 22px; font-weight: 500; }
-  .keys { display: flex; align-items: center; gap: 32px; color: var(--text-2); }
-  .keys div { display: flex; align-items: center; gap: 10px; }
-  .cta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  /* home: the level, the practice cards, then the level test as one card (issue #18) */
+  #start { flex: 1; display: flex; flex-direction: column; gap: 32px; padding: 40px 24px 56px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; }
+  .card .drill-btn { justify-content: space-between; height: 40px; }
+  .test-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: center; }
+  .test-card .intro { display: flex; flex-direction: column; gap: 10px; }
+  .test-card h2 { margin: 0; font: 500 28px/1.2 var(--serif); letter-spacing: -.01em; }
+  .test-card p { margin: 0; font-size: 16px; color: var(--text-2); text-wrap: pretty; }
+  .facts { display: flex; gap: 8px 20px; flex-wrap: wrap; font-size: 14px; color: var(--text-2); }
+  .facts span b { font-weight: 500; color: var(--text); }
+  .keys { display: flex; align-items: center; gap: 24px; color: var(--text-2); font-size: 14px; }
+  .keys div { display: flex; align-items: center; gap: 8px; }
+  .cta { display: flex; flex-direction: column; align-items: stretch; gap: 10px; min-width: 240px; }
+  .cta .note { text-align: center; }
+  @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } .test-card { grid-template-columns: 1fr; } #start .rel { align-items: flex-start; } }
 
   /* test */
   #test { flex: 1; display: flex; flex-direction: column; }
@@ -125,9 +145,6 @@
   .chart circle { fill: var(--accent); } .chart text { font: 500 10px var(--mono); fill: var(--muted); }
 
   /* drills (Phase 5) */
-  .drills { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 720px; }
-  .drills .group { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .drills .group .eyebrow { min-width: 96px; }
   .drill-btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; }
   .drill-btn small { font: 500 12px var(--mono); color: var(--muted); } .drill-btn small.done { color: var(--green); }
   #drill { flex: 1; display: flex; flex-direction: column; }
@@ -168,38 +185,54 @@
 </style>
 </head>
 <body>
+<header class="top"><div class="in">
+  <a class="brand" href="#home">DET 120</a>
+  <nav>
+    <a href="#home" data-screen="start">Practise</a>
+    <a href="#learn" data-screen="learn">Words</a>
+  </nav>
+  <span class="crumb" id="nav-crumb" hidden><span class="arrow">→</span><b id="nav-here"></b></span>
+  <span class="status" id="nav-status"></span>
+</div></header>
 <main>
 
 <section id="start">
-  <div class="intro">
-    <div class="eyebrow">DET 120 · Phase 2</div>
-    <h1>Vocabulary level test</h1>
-    <p>You will see one word at a time. Decide whether it is a real English word. Some words are invented — say <strong>No</strong> to those.</p>
+  <div class="head">
+    <div class="level">
+      <div class="eyebrow">Your level · <span id="h-when">no test yet</span></div>
+      <div class="big"><b id="h-level">—</b><span id="h-cefr"></span></div>
+      <div class="det" id="last" hidden></div>
+      <div class="det" id="retest" hidden></div>
+    </div>
+    <div class="rel">
+      <div class="note" id="d-today">nothing yet today</div>
+      <div class="note" id="d-pool"></div>
+    </div>
   </div>
-  <div class="facts">
-    <div class="fact"><b>30–90 words</b><span class="note">in blocks of 15</span></div>
-    <div class="fact"><b>2–6 minutes</b><span class="note">about 5 seconds a word</span></div>
-    <div class="fact"><b>Adaptive</b><span class="note">every answer moves your ability estimate θ; the next block is drawn around it</span></div>
+  <div class="section" id="drills">
+    <div class="eyebrow">Practise</div>
+    <div class="cards">
+      <div class="card"><div class="eyebrow">Vocabulary</div><div class="btns" id="d-vocab"></div><div class="note">Passages, blanks and dictation near your θ — the words you missed first, then <span id="d-frontier"></span>.</div></div>
+      <div class="card"><div class="eyebrow">Speaking</div><div class="btns" id="d-speak"></div><div class="note">Recorded, then rated by you on four lines.</div></div>
+      <div class="card"><div class="eyebrow">Writing</div><div class="btns" id="d-write"></div><div class="note">Timed, autosaved, then rated by you.</div></div>
+    </div>
+    <div class="note">Routine: one speaking and one writing drill a day; cloze, fill-in and dictation 3× a week, 10 items each. Partial credit moves θ; errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
   </div>
-  <div class="keys">
-    <div><span class="key">Y</span><span>Real word</span></div>
-    <div><span class="key">N</span><span>Not a word</span></div>
-  </div>
-  <div class="cta">
-    <button class="primary" id="btn-start">Start test</button>
-    <button class="secondary" id="btn-resume" hidden></button>
-    <button class="secondary" id="btn-retest" hidden></button>
-    <button class="secondary" id="btn-learn" hidden>What to learn</button>
-    <div class="note">No feedback until the end. Answer honestly — the invented words catch guessing.</div>
-    <div class="note" id="last" hidden></div>
-    <div class="note" id="retest" hidden></div>
-  </div>
-  <div class="drills" id="drills">
-    <div class="eyebrow">Practise the tasks · <span id="d-today">nothing yet today</span> · <span id="d-pool"></span></div>
-    <div class="group"><span class="eyebrow">Vocabulary</span><span id="d-vocab"></span></div>
-    <div class="group"><span class="eyebrow">Speaking</span><span id="d-speak"></span></div>
-    <div class="group"><span class="eyebrow">Writing</span><span id="d-write"></span></div>
-    <div class="note">Routine: one speaking and one writing drill a day; cloze, fill-in and dictation 3× a week, 10 items each — passages and sentences near your θ, the words you missed first, scored with partial credit that moves θ. Errors and words you lacked go to my-words. Saved to practice/attempts.csv.</div>
+  <div class="section">
+    <div class="eyebrow">Level test</div>
+    <div class="card test-card">
+      <div class="intro">
+        <h2>Vocabulary level test</h2>
+        <p>One word at a time — is it a real English word? Some are invented; say <strong>No</strong> to those. No feedback until the end, and the invented words catch guessing.</p>
+        <div class="facts"><span><b>30–90 words</b> in blocks of 15</span><span><b>2–6 minutes</b></span><span><b>Adaptive</b> — every answer moves θ, the next block is drawn around it</span></div>
+        <div class="keys"><div><span class="key">Y</span><span>Real word</span></div><div><span class="key">N</span><span>Not a word</span></div></div>
+      </div>
+      <div class="cta">
+        <button class="primary" id="btn-start">Start test</button>
+        <button class="secondary" id="btn-resume" hidden></button>
+        <button class="secondary" id="btn-retest" hidden></button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -326,10 +359,22 @@
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     return r.json();
   };
+  // One hash per screen (issue #18): pushed, so Back and Forward walk the screens; `route()` reads it back on hashchange.
+  const HASH = { start: '#home', test: '#test', between: '#test', result: '#result', learn: '#learn' };
+  const TITLE = { start: 'DET 120', test: 'Level test · DET 120', between: 'Level test · DET 120', result: 'Result · DET 120', learn: 'Words · DET 120' };
   const show = (name, hash) => {
+    if (screen === 'drill' && name !== 'drill') leaveDrill();
+    if ((screen === 'test' || screen === 'between') && name !== 'test' && name !== 'between') clearInterval(clockTimer);
     screen = name; screens.forEach(s => { $(s).hidden = s !== name; });
-    history.replaceState(null, '', hash || (name === 'learn' ? '#learn' : location.pathname));   // keep the URL in step with the screen
+    hash = hash || HASH[name];
+    if (location.hash !== hash) history.pushState(null, '', hash);
+    document.title = name === 'drill' ? `${$('d-task').textContent} · DET 120` : TITLE[name];
+    document.querySelectorAll('.top nav a').forEach(a => a.classList.toggle('on', a.dataset.screen === name));
+    const here = name === 'drill' ? $('d-task').textContent : name === 'learn' || name === 'start' ? '' : name === 'result' ? 'Result' : 'Level test';
+    $('nav-crumb').hidden = !here; $('nav-here').textContent = here;
+    window.scrollTo(0, 0);
   };
+  const goHome = () => { show('start'); init(); };
   const fmt = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 
   // ---- start
@@ -338,12 +383,15 @@
     maxBlocks = c.max_blocks;
     subbands = c.subbands;
     $('max-blocks').textContent = maxBlocks;
-    if (c.last) {
-      $('last').textContent = `Last result: ${c.last.level || 'no level'} on ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)') +
-        (c.theta == null ? '' : ` · θ ${c.theta.toFixed(2)} ± ${c.se.toFixed(2)} · DET ≈ ${c.det_estimate} (${c.det_range[0]}–${c.det_range[1]})`);
+    const cefr = (name) => (subbands.find(b => b.name === name) || {}).cefr || '';
+    $('h-level').textContent = c.level || (c.last ? 'no level' : '—');
+    $('h-cefr').textContent = c.level ? cefr(c.level) : c.last ? `below ${c.frontier}` : 'take the test';
+    $('h-when').textContent = c.last ? `last test ${c.last.date}` + (c.last.reliable === '1' ? '' : ' (unreliable)') : 'no test yet';
+    if (c.theta != null) {
+      $('last').innerHTML = `Estimated DET <b>${c.det_estimate}</b> (${c.det_range[0]}–${c.det_range[1]}) · θ <b>${c.theta.toFixed(2)}</b> ± ${c.se.toFixed(2)} · frontier <b>${c.frontier}</b>`;
       $('last').hidden = false;
     }
-    $('btn-learn').hidden = !c.last;
+    $('nav-status').innerHTML = c.theta == null ? '' : `<b>${c.level || c.frontier}</b> · θ ${c.theta.toFixed(2)} · DET ≈ ${c.det_estimate}`;
     retest = c.retest;
     $('retest').hidden = $('btn-retest').hidden = !retest;
     if (retest) {
@@ -406,6 +454,7 @@
   async function finish() {
     clearInterval(clockTimer);
     const r = await api(`/api/session/${sid}/result`);
+    block = null;                                              // the session is over: #test now goes home, not back into it
     $('r-date').textContent = r.date;
     $('r-level').textContent = r.level || '—';
     $('r-cefr').textContent = r.level ? r.cefr : `below ${r.lowest_failed || r.frontier}`;
@@ -512,10 +561,11 @@
   const poolLine = (p) => `priority pool: ${p.total} word${p.total === 1 ? '' : 's'} (my-words ${p['my-words']} · repeat ${p.repeat} · missed ${p.missed} · shaky ${p.shaky})`;
   function renderDrills(tasks, today, frontier, pool) {
     const btn = (t) => `<button class="drill-btn" data-task="${t}">${TASK_NAMES[t]}<small class="${today[t] ? 'done' : ''}">${today[t] || 0} today</small></button>`;
-    $('d-vocab').innerHTML = btn('read-and-complete') + ' ' + btn('fill-in-the-blanks') + ' ' + btn('listen-and-type') + ` <span class="note">missed words first, then ${frontier}</span>`;
+    $('d-vocab').innerHTML = ['read-and-complete', 'fill-in-the-blanks', 'listen-and-type'].map(btn).join('');
+    $('d-frontier').textContent = frontier;
     $('d-pool').textContent = poolLine(pool);
-    $('d-speak').innerHTML = SPEAKING.map(btn).join(' ');
-    $('d-write').innerHTML = WRITING.map(btn).join(' ');
+    $('d-speak').innerHTML = SPEAKING.map(btn).join('');
+    $('d-write').innerHTML = WRITING.map(btn).join('');
     const n = Object.values(today).reduce((a, b) => a + b, 0);
     $('d-today').textContent = n ? `${n} attempt${n === 1 ? '' : 's'} today` : 'nothing yet today';
   }
@@ -826,12 +876,18 @@
   function wireResult(next) {
     const n = $('d-next'), b = $('d-back');
     if (n) n.onclick = () => next && next();
-    if (b) b.onclick = async () => { stopClock(); await stopRecording(); D.item = null; show('start'); init(); };
+    if (b) b.onclick = goHome;
   }
+  function leaveDrill() { stopClock(); stopRecording(); D.item = null; }
+  const redirectHome = () => { history.replaceState(null, '', '#home'); goHome(); };   // a stale entry is rewritten, so Back does not bounce on it
+  // The hash → the screen. A test hash with no test in hand goes home (Resume is there if the session is open).
   function route() {
-    const m = location.hash.match(/^#drill\/([a-z-]+)(?:\/(passage|sentence))?$/);
-    if (m) openDrill(m[1], m[2]);
-    else if (location.hash === '#learn') openLearn();
+    const h = location.hash, m = h.match(/^#drill\/([a-z-]+)(?:\/(passage|sentence))?$/);
+    if (m) { if (screen !== 'drill' || D.task !== m[1] || (m[1] === 'read-and-complete' && D.mode !== (m[2] || 'passage'))) openDrill(m[1], m[2]); }
+    else if (h === '#learn') openLearn();
+    else if (h === '#test') { if (sid && block && screen !== 'test' && screen !== 'between') beginTest(); else if (!sid || !block) redirectHome(); }
+    else if (h === '#result') { if (sid && screen !== 'result') finish().catch(redirectHome); else if (!sid) redirectHome(); }
+    else if (screen !== 'start') goHome();
   }
 
   // ---- wiring
@@ -844,21 +900,21 @@
   $('btn-no').onclick = () => answer(false);
   $('btn-continue').onclick = nextBlock;
   $('btn-resume').onclick = resumeTest;
-  $('btn-learn').onclick = openLearn;
   $('btn-learn-next').onclick = openLearn;
-  $('btn-learn-back').onclick = () => { show('start'); init(); };
+  $('btn-learn-back').onclick = goHome;
   $('btn-learn-test').onclick = () => start();
   $('btn-export').onclick = exportDeck;
   $('l-batch').onchange = openLearn;
-  $('btn-retake').onclick = () => { show('start'); init(); };
+  $('btn-retake').onclick = goHome;
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key.toLowerCase();
+    const k = e.key.toLowerCase(), typing = /^textarea$/i.test(e.target.tagName);   // Esc in a textarea only blurs — a second Esc leaves
     if (screen === 'test' && (k === 'y' || k === 'n')) { e.preventDefault(); answer(k === 'y'); }
     else if (screen === 'between' && k === ' ') { e.preventDefault(); nextBlock(); }
-    else if (screen === 'start' && (k === ' ' || k === 'enter')) { e.preventDefault(); start(); }
+    else if (k === 'escape' && (screen === 'learn' || screen === 'drill' || screen === 'result')) { if (typing) e.target.blur(); else goHome(); }
   });
   window.addEventListener('hashchange', route);
+  if (!location.hash) history.replaceState(null, '', '#home');
   init().then(route);
 })();
 </script>
