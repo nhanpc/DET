@@ -280,7 +280,7 @@ values in [docs/det-format.md](docs/det-format.md).
 - **Listen and Type** (`listen-and-type`): a 6–14-word sentence whose
   difficulty `b_text` ([docs/sentences.md](docs/sentences.md)) lies within
   ±0.6 of your θ (the frontier sub-band before the first test), read by
-  Kokoro-82M on this machine (issue #21: four American voices, natural pace,
+  Kokoro-82M on this machine (issue #21: three American voices, natural pace,
   on the GPU when there is one, peak-normalised 24 kHz WAV cached in
   `practice/listen-and-type/audio/`; `DET_TTS=edge` falls back to edge-tts),
   at most 3 plays, 1 minute. Scored as partial credit by character-level

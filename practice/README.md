@@ -246,7 +246,7 @@ sentence with the answer, the kind, and `θ` before → after.
 `listen-and-type/sentences.csv` (`id, family, subband, sentence, voice,
 b_text, b_adjust, features`) is built from `senses.csv` on the first request
 — one 6–14-word example per family whose text contains a form of the family,
-one of the engine's voices per row (Kokoro's four American voices since #21;
+one of the engine's voices per row (Kokoro's three American voices since #21;
 a row that still names an edge-tts voice maps to one fixed Kokoro voice), its
 `b_text` and the features behind it as `k=v;…` — and is not committed, so the
 voices are local to the machine; a file with an older header is rebuilt the

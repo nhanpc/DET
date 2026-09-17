@@ -249,3 +249,28 @@ not audio; and the first of those sentences (*a local motion keepeth bodies
 integral*, a WordNet example from Bacon) is the kind of archaic example the
 bank still contains. Verdict rule in the script: a voice under 0.9 mean credit
 is dropped from `tts.VOICES`; none is.
+
+**Whisper is too good a listener to separate the voices by credit alone**, so
+the script also reports Whisper's own confidence per word (`word_timestamps`
+gives a probability per word): `conf` = mean word probability, `min` = the
+mean of each clip's least certain word, `unsure` = clips with a word under
+60 %. Same 40 sentences:
+
+| Listener | Voice | Credit | conf | min | unsure |
+|----------|-------|-------:|-----:|----:|-------:|
+| small | `af_heart` | 0.995 | 0.95 | 0.77 | 12 % |
+| small | `af_bella` | 0.995 | 0.95 | 0.77 | 18 % |
+| small | `am_michael` | 0.994 | 0.95 | 0.74 | 18 % |
+| small | `am_fenrir` | 0.993 | 0.93 | **0.67** | **30 %** |
+| tiny | `af_heart` | 0.995 | 0.93 | 0.74 | 12 % |
+| tiny | `af_bella` | 0.993 | 0.93 | 0.75 | 15 % |
+| tiny | `am_michael` | 0.993 | 0.92 | 0.69 | 30 % |
+| tiny | `am_fenrir` | 0.990 | 0.93 | 0.74 | 20 % |
+
+Even *tiny*, a much weaker listener, still scores 0.99 — the sentences are
+clear. The words it half-guesses are the learner's confusions (*won → want*,
+*buzz → Bios*, *Chattanooga*, a quoted *‘I*), not noise. `am_fenrir`, the
+fastest voice, is the confidence outlier on the stronger listener (min 0.67,
+30 % unsure) and was dropped; the pool is `af_heart`, `af_bella`,
+`am_michael`. Rows that mapped to `am_fenrir` re-map, so a few clips are
+generated again.

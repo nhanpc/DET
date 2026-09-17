@@ -6,6 +6,11 @@ clips with Whisper and score the transcripts with the drill's own scorer (drills
     .venv/bin/python scripts/tts_check.py --n 60 --theta 7.5 --model medium
     .venv/bin/python scripts/tts_check.py --engine edge        # the same sample through edge-tts, for comparison
     .venv/bin/python scripts/tts_check.py --attempts           # my listen-and-type rows: Whisper's credit beside mine
+    .venv/bin/python scripts/tts_check.py --model tiny         # a weaker listener: tiny < base < small < medium
+
+Besides the credit, Whisper reports its own confidence per word (`conf` = mean word probability, `min` = the
+least certain word of a clip, `unsure` = clips with a word under 60 %) — the words even a strong listener
+half-guessed are the ones the voice really blurs. A weaker model (--model tiny) is a listener closer to mine.
 
 A voice Whisper gets right at ≥ 0.95 is intelligible: a low score of mine on it is listening, not audio. The
 words Whisper also misses are the ones the voice mangles. Clips come from and go to the app's cache
@@ -26,14 +31,22 @@ from app import drills, store, tts                    # noqa: E402  (after the s
 WINDOW = 0.6                                          # |b_text − θ| for the sample, the drill's own window
 PASS = 0.95                                           # a sentence Whisper "gets"
 KEEP = 0.9                                            # mean credit under which a voice should leave the pool
+UNSURE = 0.6                                          # a word Whisper transcribed with less confidence than this
 
 
 def transcriber(name: str):
+    """path → (text, [(word, probability)]): Whisper's transcript and its own confidence per word (the token
+    probabilities behind the word timestamps). A word under UNSURE is one Whisper itself half-guessed."""
     import torch
     import whisper
     cuda = torch.cuda.is_available()
     model = whisper.load_model(name, device="cuda" if cuda else "cpu")
-    return lambda path: model.transcribe(str(path), language="en", fp16=cuda, temperature=0.0)["text"].strip()
+
+    def run(path: Path) -> tuple[str, list[tuple[str, float]]]:
+        r = model.transcribe(str(path), language="en", fp16=cuda, temperature=0.0, word_timestamps=True)
+        words = [(w["word"].strip(), float(w["probability"])) for seg in r["segments"] for w in seg.get("words", [])]
+        return r["text"].strip(), words
+    return run
 
 
 def duration(path: Path) -> float:
@@ -46,10 +59,12 @@ def duration(path: Path) -> float:
 
 def score_clip(text: str, voice: str, asr) -> dict:
     path = tts.audio(text, voice)
-    heard = asr(path)
+    heard, words = asr(path)
     r = drills.dictation_score(text, heard)
+    probs = [p for _, p in words] or [float("nan")]
     return {"text": text, "voice": voice, "heard": heard, "score": r["score"], "wrong": r["wrong"],
-            "spw": duration(path) / max(1, drills.word_count(text))}
+            "spw": duration(path) / max(1, drills.word_count(text)),
+            "conf": sum(probs) / len(probs), "min": min(probs), "unsure": [w for w, p in words if p < UNSURE]}
 
 
 def sample(theta: float, n: int, seed: int) -> list[dict]:
@@ -60,12 +75,15 @@ def sample(theta: float, n: int, seed: int) -> list[dict]:
 
 
 def table(results: dict[str, list[dict]]) -> str:
-    lines = [f"{'voice':14} {'mean':>6} {'≥ 0.95':>7} {'< 0.7':>6} {'s/word':>7}  verdict"]
+    """Per voice: the credit Whisper earns, its pace, and Whisper's own confidence — the mean word probability,
+    the mean of each clip's least certain word, and the share of clips with a word under UNSURE."""
+    lines = [f"{'voice':20} {'credit':>6} {'≥ 0.95':>7} {'s/word':>7} {'conf':>6} {'min':>6} {'unsure':>7}  verdict"]
     for v, rs in results.items():
         mean = sum(r["score"] for r in rs) / len(rs)
         spw = [r["spw"] for r in rs if r["spw"] == r["spw"]]
-        lines.append(f"{v:14} {mean:6.3f} {sum(r['score'] >= PASS for r in rs) / len(rs):6.0%} "
-                     f"{sum(r['score'] < 0.7 for r in rs) / len(rs):6.0%} {sum(spw) / len(spw) if spw else float('nan'):7.2f}  "
+        lines.append(f"{v:20} {mean:6.3f} {sum(r['score'] >= PASS for r in rs) / len(rs):6.0%} "
+                     f"{sum(spw) / len(spw) if spw else float('nan'):7.2f} {sum(r['conf'] for r in rs) / len(rs):6.2f} "
+                     f"{sum(r['min'] for r in rs) / len(rs):6.2f} {sum(bool(r['unsure']) for r in rs) / len(rs):6.0%}  "
                      + ("ok" if mean >= KEEP else "drop"))
     return "\n".join(lines)
 
@@ -92,12 +110,12 @@ def main(argv: list[str] | None = None) -> int:
         if not rows:
             print("no listen-and-type attempts yet", file=sys.stderr)
             return 1
-        print(f"{'attempt':24} {'me':>6} {'whisper':>8}  sentence → whisper heard (wrong words)")
+        print(f"{'attempt':24} {'me':>6} {'whisper':>8} {'conf':>5} {'min':>5}  sentence → whisper heard (wrong words) [unsure words]")
         for r in rows:
             s = bank[r["item"]]
             w = score_clip(s["sentence"], s["voice"], asr)
-            print(f"{r['attempt']:24} {float(r['score'] or 0):6.2f} {w['score']:8.2f}  {s['sentence']} → {w['heard']}"
-                  + (f" ({', '.join(w['wrong'])})" if w["wrong"] else ""))
+            print(f"{r['attempt']:24} {float(r['score'] or 0):6.2f} {w['score']:8.2f} {w['conf']:5.2f} {w['min']:5.2f}  {s['sentence']} → {w['heard']}"
+                  + (f" ({', '.join(w['wrong'])})" if w["wrong"] else "") + (f" [{', '.join(w['unsure'])}]" if w["unsure"] else ""))
         return 0
 
     if a.theta is None:
@@ -111,11 +129,16 @@ def main(argv: list[str] | None = None) -> int:
         results[v] = [score_clip(r["sentence"], v, asr) for r in rows]
         print(f"  {v}: done", file=sys.stderr)
     print(table(results))
-    worst = sorted((r for rs in results.values() for r in rs), key=lambda r: r["score"])[: a.worst]
+    worst = sorted((r for rs in results.values() for r in rs), key=lambda r: (r["score"], r["min"]))[: a.worst]
     if worst:
-        print("\nworst:")
+        print("\nworst by credit:")
         for r in worst:
             print(f"  {r['score']:.2f} {r['voice']:12} {r['text']}\n       heard: {r['heard']}" + (f"  (wrong: {', '.join(r['wrong'])})" if r["wrong"] else ""))
+    unsure = sorted((r for rs in results.values() for r in rs if r["unsure"]), key=lambda r: r["min"])[: a.worst]
+    if unsure:
+        print(f"\nleast confident (a word under {UNSURE:.0%}):")
+        for r in unsure:
+            print(f"  {r['min']:.2f} {r['voice']:12} {r['text']}   unsure: {', '.join(r['unsure'])}")
     return 0
 
 

@@ -17,7 +17,7 @@ from .bank import PRACTICE
 
 AUDIO = PRACTICE / "listen-and-type" / "audio"
 ENGINE = os.environ.get("DET_TTS", "kokoro")
-VOICES = {"kokoro": ["af_heart", "af_bella", "am_michael", "am_fenrir"],            # two women, two men, all American
+VOICES = {"kokoro": ["af_heart", "af_bella", "am_michael"],       # American; am_fenrir dropped after the voice check (#22)
           "edge": ["en-US-AriaNeural", "en-GB-SoniaNeural", "en-AU-NatashaNeural", "en-IN-NeerjaNeural"]}
 SUFFIX = {"kokoro": ".wav", "edge": ".mp3"}
 MEDIA = {".wav": "audio/wav", ".mp3": "audio/mpeg"}
