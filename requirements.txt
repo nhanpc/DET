@@ -8,6 +8,8 @@ uvicorn>=0.29
 kokoro>=0.9
 soundfile>=0.12
 edge-tts>=7
+# the voice check (issue #22): scripts/tts_check.py transcribes the clips with Whisper on the GPU
+openai-whisper>=20250625
 # tests
 pytest>=8
 httpx>=0.27

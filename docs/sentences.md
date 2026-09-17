@@ -207,3 +207,45 @@ are what the drills needed on top of it, and both are in place:
    the target family wrong is vocabulary; a near miss in letters is spelling.
    Each gets its own tag in `my-words.csv`; a spelling or hearing slip never
    becomes a card, the vocabulary misses lead the priority pool.
+
+## Voice check: is it my ear or the voice?
+
+Issue #22. `scripts/tts_check.py` synthesises a sample of bank sentences,
+transcribes each clip with Whisper and scores the transcript with the drill's
+own scorer (`drills.dictation_score`), so a voice gets the credit a very good
+listener would get on it:
+
+```mermaid
+flowchart LR
+    B[(sentences.csv<br/>40 near θ)] --> T[TTS · each voice] --> W[Whisper small] --> S[dictation_score] --> R[credit per voice]
+```
+
+```bash
+.venv/bin/python scripts/tts_check.py                 # 40 sentences near the current θ, the engine's voices
+.venv/bin/python scripts/tts_check.py --engine edge   # the same sample through edge-tts
+.venv/bin/python scripts/tts_check.py --attempts      # my own listen-and-type rows: Whisper's credit beside mine
+```
+
+First run, 2026-09-17, 40 sentences with `|b_text − 7.63| ≤ 0.6`, Whisper
+*small* on the GPU (`s/word` = clip seconds per word, i.e. pace):
+
+| Engine | Voice | Mean credit | ≥ 0.95 | s/word |
+|--------|-------|-------------|--------|--------|
+| Kokoro | `af_heart` | 0.995 | 92 % | 0.38 |
+| Kokoro | `af_bella` | 0.995 | 92 % | 0.41 |
+| Kokoro | `am_michael` | 0.994 | 95 % | 0.42 |
+| Kokoro | `am_fenrir` | 0.993 | 92 % | 0.36 |
+| edge-tts | `en-US-AriaNeural` | 0.996 | 95 % | 0.44 |
+| edge-tts | `en-GB-SoniaNeural` | 0.999 | 100 % | 0.41 |
+| edge-tts | `en-AU-NatashaNeural` | 0.997 | 98 % | 0.46 |
+| edge-tts | `en-IN-NeerjaNeural` | 0.993 | 95 % | 0.48 |
+
+Every voice of both engines is intelligible (a miss is *switched → switch*,
+*cars telescoped → car's telescope*: inflections, the same slips a person
+makes). The Kokoro voices are 10–20 % faster than edge-tts's; `am_fenrir` is
+the fastest at 0.36 s/word (≈ 2.8 words/s). On my own two dictation rows
+Whisper scored 1.00 where I scored 0.21 and 0.00 — so the gap is listening,
+not audio; and the first of those sentences (*a local motion keepeth bodies
+integral*, a WordNet example from Bacon) is the kind of archaic example the
+bank still contains. Verdict rule in the script: a voice under 0.9 mean credit
+is dropped from `tts.VOICES`; none is.

@@ -216,6 +216,7 @@ and commit, so the level history is readable on GitHub without the app:
 .venv/bin/python scripts/report.py --anki ~/collection-copy.anki2   # + Anki review stats per sub-band
 .venv/bin/python scripts/report.py --check    # exit 1 if levels.csv / results.csv disagree with the session JSON
 .venv/bin/python scripts/report.py --sentences   # b_text histogram of the sentence bank per band (docs/sentences.md)
+.venv/bin/python scripts/tts_check.py            # is it my ear or the voice? TTS → Whisper → dictation score per voice (docs/sentences.md § Voice check)
 ```
 
 The generated block holds: the **Now** line (pooled level, CEFR and DET
