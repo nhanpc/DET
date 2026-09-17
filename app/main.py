@@ -14,7 +14,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import drills, irt, learn, plan, progress, store, textdiff, tts
+from . import drills, irt, learn, plan, progress, store, textdiff, tts, vcs
 from .adaptive import MAX_BLOCKS, PSEUDO_PER_BLOCK, REAL_PER_BLOCK, WINDOW, Session
 from .bank import VOCAB, Bank, load_subbands, read_csv
 
@@ -68,6 +68,12 @@ class Draft(BaseModel):
     text: str = ""
     text2: str = ""
     seconds: int = 0
+
+
+# What each event commits (issue #20): the test files, the drill row with its draft and any my-words it added,
+# the my-words list alone, the plan ticks. Ignored files (recordings, the sentence bank) are never named here.
+TEST_FILES = [store.SESSIONS, store.RESULTS, store.MISSES, store.LEVELS]
+DRILL_FILES = [store.ATTEMPTS, drills.DRAFTS, learn.MY_WORDS]
 
 
 def get(sid: str) -> Session:
@@ -131,7 +137,7 @@ def config():
             "theta_test": st["theta_test"], "theta_listen": st["theta_listen"], "se_listen": st["se_listen"],
             "resume": {"session": resume.id, "block": block_view(resume)} if resume else None,
             "tasks": drills.TASKS, "today": drills.today_counts(st["attempts"]), "pool": learn.pool_counts(priority(st)[2]),
-            "plan": plan_view(st)}
+            "plan": plan_view(st), "git": {"enabled": vcs.ENABLED, "push": vcs.PUSH, "last": vcs.last}}
 
 
 def plan_view(st: dict) -> Optional[dict]:
@@ -143,7 +149,8 @@ def plan_view(st: dict) -> Optional[dict]:
 @app.post("/api/plan/words")
 def plan_words():
     """Tick *Words done* for today (idempotent) and return the plan as /api/config would."""
-    plan.append_log(date.today())
+    if plan.append_log(date.today()):
+        vcs.commit([plan.LOG], f"Plan: words done {date.today().isoformat()}")
     return plan_view(current_state())
 
 
@@ -174,6 +181,12 @@ def answer(sid: str, a: Answer):
     if status == "finished":
         store.save_result(s, s.result())
     store.write_session(s)
+    if status == "finished":
+        r = s.result()
+        vcs.commit(TEST_FILES, f"Level test {sid}: finished, {r.level or 'no level'}" + ("" if r.reliable else " (unreliable)"))
+    elif status != "next":
+        b = s.block
+        vcs.commit(TEST_FILES, f"Level test {sid}: block {b.no}, {b.subband} {b.hits}/{b.n_real}")
     return {"status": status, "block": block_view(s)}
 
 
@@ -258,6 +271,7 @@ def add_my_word(w: MyWord):
         raise HTTPException(422, "family is empty")
     if not learn.add_my_word(family, w.source, w.note):
         raise HTTPException(409, f"{family} is already on the list")
+    vcs.commit([learn.MY_WORDS], f"my-words: +{family} ({w.source})")
     return {"family": family, "source": w.source, "note": w.note, "in_index": family in BANK.index}
 
 
@@ -709,7 +723,15 @@ def close_rows() -> list[str]:
 @app.post("/api/drill/{task}/{item}")
 def drill_answer(task: str, item: str, a: DrillAnswer):
     """Score the attempt (cloze, dictation) or take the self-rating (speaking, writing); one attempts.csv row;
-    wrong and lacked words → my-words. Returns what the result screen shows."""
+    wrong and lacked words → my-words. Returns what the result screen shows, and commits the row (#20)."""
+    out = _drill_answer(task, item, a)
+    what = f"{out['score']}" if out.get("score") not in (None, "") else f"self {out['self']}" if out.get("self") is not None else "unrated"
+    added = sum(1 for w in out.get("added") or [] if w.get("added"))
+    vcs.commit(DRILL_FILES, f"Drill {task} {out['attempt']}: {what}" + (f", +{added} my-words" if added else ""))
+    return out
+
+
+def _drill_answer(task: str, item: str, a: DrillAnswer) -> dict:
     t = task_of(task)
     attempt = attempt_of(a.attempt)
     row = {"date": attempt[:10], "attempt": attempt, "task": task, "item": item, "subband": "",

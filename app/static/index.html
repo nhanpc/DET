@@ -239,7 +239,7 @@
       <div class="card"><div class="eyebrow">Speaking</div><div class="btns" id="d-speak"></div><div class="note">Recorded, then rated by you on four lines.</div></div>
       <div class="card"><div class="eyebrow">Writing</div><div class="btns" id="d-write"></div><div class="note">Timed, autosaved, then rated by you.</div></div>
     </div>
-    <div class="note">Every attempt moves θ (partial credit counts); errors and words you lacked go to my-words. Speaking and writing are for the DET practice test after each gate. Saved to practice/attempts.csv.</div>
+    <div class="note">Every attempt moves θ (partial credit counts); errors and words you lacked go to my-words. Speaking and writing are for the DET practice test after each gate. Saved to practice/attempts.csv; <span id="git-note"></span></div>
   </div>
   <div class="section">
     <div class="eyebrow">Level test</div>
@@ -424,6 +424,8 @@
     }
     renderDrills(c.tasks, c.today, c.frontier, c.pool);
     renderPlan(c.plan);
+    const g = c.git;                                                 // issue #20: every row is committed as it is written
+    $('git-note').textContent = !g.enabled ? 'git commits are off (DET_GIT=0).' : g.last.error ? `the last git commit failed: ${g.last.error}` : `every row is committed to git as it is written${g.push ? ' and pushed' : ''}.`;
     resume = c.resume;
     $('btn-resume').hidden = !resume;
     if (resume) $('btn-resume').textContent = `Resume unfinished test · block ${resume.block.no}, word ${Math.min(resume.block.pos + 1, resume.block.size)}`;

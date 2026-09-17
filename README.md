@@ -116,7 +116,8 @@ range, the path (`θ` after each block), the block scores pooled per sub-band
 (`hits/10 − false alarms/5`, the old block view), a guessing check
 (false-alarm rate > 25 % → unreliable) and the words you missed, each with a
 *Pin* button that keeps it on the study list (see *my-words* below).
-Everything is saved as you go, nothing to click: `vocab/tests/` holds
+Everything is saved as you go, nothing to click — and committed to git as it
+is written (issue #20, see *Track progress*): `vocab/tests/` holds
 `levels.csv` (one row per test, with `theta` and `se`), `results.csv` (per
 block), `misses.csv` (every word you got wrong, with the answer time) and
 `sessions/*.json` (every item with its `b`). An unfinished test is offered as
@@ -191,6 +192,19 @@ Nothing is stored beyond the history and `my-words.csv`: the statuses are
 recomputed from `vocab/tests/` every time.
 
 ## Track progress
+
+**The app commits its own data.** Every event that writes a row — the end of a
+test block, the end of a test, a drill answer (with its writing draft and any
+words it added to my-words), a pinned word, a *Words done* tick — is followed
+by one git commit of just those files, in a background thread, with a message
+that says what happened (`Level test 2026-09-17_101010_ab12: block 2, 4k-a
+8/10`, `Drill listen-and-type 2026-09-17_…: 0.8, +1 my-words`, `Plan: words
+done 2026-09-17`). Per-answer saves and draft autosaves are carried by the
+next block or the final answer. Anything you staged by hand stays staged;
+nothing changed → no commit; a git failure is logged and shown in the home
+page's practice note, never raised. `DET_GIT=0` turns it off,
+`DET_GIT_PUSH=1` pushes after each commit (`app/vcs.py`). What is still by
+hand: `vocab/progress.md` (below) and `mocks.csv`.
 
 One command turns the history in `vocab/tests/` into the generated half of
 [vocab/progress.md](vocab/progress.md) (issue #9); run it after each test

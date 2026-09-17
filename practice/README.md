@@ -6,7 +6,9 @@ straight to `#drill/<task>`. The real DET clock runs
 ([docs/det-format.md](../docs/det-format.md)); every attempt is one row of
 `attempts.csv`, every draft and recording is kept under its attempt id, and
 every word you got wrong or lacked lands in `vocab/my-words.csv` through
-`learn.add_my_word()` so *What to learn* and the Anki export pick it up.
+`learn.add_my_word()` so *What to learn* and the Anki export pick it up. Each
+answer ends with one git commit of the row, the draft and my-words
+(`app/vcs.py`, issue #20); recordings are gitignored and stay local.
 
 | `task` | Drill | Items from | Clock | Scored |
 |---|---|---|---|---|

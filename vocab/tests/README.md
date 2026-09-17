@@ -1,7 +1,9 @@
 # Level-test history
 
 Written by the app (`app/store.py`) while a test runs — nothing to click —
-plus one file, `mocks.csv`, typed by hand after each full DET practice test.
+and committed to git at the end of every block and of the test (`app/vcs.py`,
+issue #20), plus one file, `mocks.csv`, typed by hand after each full DET
+practice test (not committed by the app).
 One session = one adaptive yes/no test; the `session` column joins the files.
 
 | File | One row per | Written |
