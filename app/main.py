@@ -347,7 +347,7 @@ def prompt_row(task: str, item: str) -> dict:
 
 
 def prompt_voice(item: str) -> str:
-    """Listen Then Speak: one of the four accents, fixed per prompt id so the cached MP3 is reused."""
+    """Listen Then Speak: one of the engine's voices, fixed per prompt id so the cached clip is reused."""
     return drills.VOICES[int(sha1(item.encode()).hexdigest(), 16) % len(drills.VOICES)]
 
 
@@ -355,7 +355,7 @@ def speech(text: str, voice: str) -> Path:
     try:
         return tts.audio(text, voice)
     except Exception as e:                                                  # edge-tts needs the internet once per sentence
-        raise HTTPException(503, f"could not synthesise the audio ({e.__class__.__name__}: {e}); the MP3 is cached once it works")
+        raise HTTPException(503, f"could not synthesise the audio ({e.__class__.__name__}: {e}); the clip is cached once it works")
 
 
 def prompt_view(task: str, row: dict, attempt: str) -> dict:
@@ -538,7 +538,7 @@ def drill_next(task: str, mode: str = "passage"):
 
 @app.get("/api/drill/{task}/{item}/audio")
 def drill_audio(task: str, item: str):
-    """The cached edge-tts MP3 of a dictation sentence or a Listen Then Speak prompt."""
+    """The cached clip (Kokoro WAV, or edge-tts MP3 with DET_TTS=edge) of a dictation sentence or a Listen Then Speak prompt."""
     task_of(task)
     if task == "listen-then-speak":
         row = prompt_row(task, item)
@@ -548,7 +548,7 @@ def drill_audio(task: str, item: str):
         path = speech(row["sentence"], row["voice"])
     else:
         raise HTTPException(404, f"{task} has no audio")
-    return FileResponse(path, media_type="audio/mpeg")
+    return FileResponse(path, media_type=tts.MEDIA[path.suffix])
 
 
 @app.get("/api/drill/{task}/{item}/photo")

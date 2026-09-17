@@ -167,7 +167,7 @@ from #16 on; rows without it are skipped.
 flowchart LR
     T[Level test<br/>yes/no on words<br/>15 per block] -->|"Rasch EAP: θ from every word's b<br/>docs/det-adaptive.md"| L[θ 8.1 → level 4k-a<br/>frontier 5k-a]
     L -->|"|b_text − θ| ≤ 0.6 (#16)"| P[Sentence pool<br/>≥ 10 sentences]
-    P -->|random, no repeat in 7 days| D[Dictation<br/>edge-tts, ≤ 3 plays]
+    P -->|random, no repeat in 7 days| D[Dictation<br/>Kokoro TTS, ≤ 3 plays]
     D -->|"credit: character edit distance"| L
     D -->|word-level diff| R["events per word<br/>hit · form · hearing · spelling · vocabulary"]
     R -->|"vocabulary miss, skill slip"| M[(vocab/my-words.csv)]

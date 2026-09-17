@@ -278,9 +278,10 @@ values in [docs/det-format.md](docs/det-format.md).
   the event is the word's `hit` / `spelling` / `vocabulary`.
 - **Listen and Type** (`listen-and-type`): a 6–14-word sentence whose
   difficulty `b_text` ([docs/sentences.md](docs/sentences.md)) lies within
-  ±0.6 of your θ (the frontier sub-band before the first test), read by an
-  edge-tts neural voice (four accents; the MP3 is cached in
-  `practice/listen-and-type/audio/`, so a sentence needs the internet once),
+  ±0.6 of your θ (the frontier sub-band before the first test), read by
+  Kokoro-82M on this machine (issue #21: four American voices, natural pace,
+  on the GPU when there is one, peak-normalised 24 kHz WAV cached in
+  `practice/listen-and-type/audio/`; `DET_TTS=edge` falls back to edge-tts),
   at most 3 plays, 1 minute. Scored as partial credit by character-level
   edit distance, which moves the same θ as the level test; the word-level
   diff tags every wrong word with what went wrong — hearing, spelling, form
@@ -310,7 +311,7 @@ values in [docs/det-format.md](docs/det-format.md).
   times a week.
 
 ```bash
-.venv/bin/pip install -r requirements.txt   # adds edge-tts
+.venv/bin/pip install -r requirements.txt   # adds kokoro (+ torch) and edge-tts
 .venv/bin/uvicorn app.main:app             # http://localhost:8000/#drill/read-and-complete
 ```
 

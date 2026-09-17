@@ -119,13 +119,15 @@ def test_level_frontier_and_det_anchors():
     assert lo < irt.det_estimate(6.77, SUBBANDS) < hi and (lo, hi) == (77, 83)
 
 
-def test_saved_sessions_replayed_through_the_scale():
+def test_saved_sessions_replayed_through_the_scale(monkeypatch):
     """The three sessions in vocab/tests/sessions/ (old block rule: levels 3k-b, 3k-b, 4k-a; pooled level 3k-b,
     frontier 4k-a). Replayed through the EAP, chaining each prior on the last θ: the θ level agrees with the
     old per-session level on all three; the θ frontier agrees on session 1 (4k-a) and is one sub-band higher on
     sessions 2 and 3, because the old frontier is the lowest *failed* sub-band while the θ frontier is where
     P = 0.5 (session 3: 18/20 at 4k-a and 8/10 at 4k-b puts θ at 8.13, in 5k-a). The current level and frontier
     from θ are therefore (4k-a, 5k-a), one sub-band above the old pooled (3k-b, 4k-a)."""
+    monkeypatch.setattr(store, "SESSIONS", store.TESTS / "sessions")          # the real history, on purpose
+    monkeypatch.setattr(store, "LEVELS", store.TESTS / "levels.csv")
     sessions = store.load_sessions()
     levels = store.load_levels()
     bank = Bank()

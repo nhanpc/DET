@@ -2,7 +2,11 @@
 # extract_raw.py (openpyxl). Install:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 fastapi>=0.110
 uvicorn>=0.29
-# Phase 5 drills (issue #10): dictation and Listen Then Speak audio; save_sync() needs a recent release
+# Dictation and Listen Then Speak audio (issues #10, #21): Kokoro-82M locally (pulls torch — CUDA wheels on Linux —
+# and misaki with espeakng-loader, so no system espeak-ng); the model downloads into the Hugging Face cache on
+# the first sentence. edge-tts is the fallback engine (DET_TTS=edge, needs the internet, save_sync() needs >= 7).
+kokoro>=0.9
+soundfile>=0.12
 edge-tts>=7
 # tests
 pytest>=8

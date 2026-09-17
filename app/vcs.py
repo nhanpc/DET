@@ -30,14 +30,19 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def relative(paths: Iterable[Path | str], root: Path) -> list[str]:
-    """The paths under `root`, relative to it; the others (a test's tmp_path) are dropped."""
+    """The paths under `root`, relative to it; the others (a test's tmp_path) are dropped, and so are paths
+    that neither exist nor are tracked (a drafts folder before the first draft) — git add rejects the
+    whole pathspec on one of those."""
     out = []
     for p in paths:
         p = Path(p)
         p = p if p.is_absolute() else root / p
         if p.is_relative_to(root):
             out.append(str(p.relative_to(root)))
-    return out
+    if not out:
+        return []
+    tracked = set(_git(root, "ls-files", "--", *out).stdout.split("\n")) if (root / ".git").exists() else set()
+    return [p for p in out if (root / p).exists() or any(t == p or t.startswith(p + "/") for t in tracked)]
 
 
 def commit_now(paths: Iterable[Path | str], message: str, root: Optional[Path] = None, push: Optional[bool] = None) -> bool:

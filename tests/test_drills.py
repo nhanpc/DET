@@ -171,11 +171,15 @@ def test_attempt_row_and_tts_cache(tmp_path, monkeypatch):
                        "theta": "", "b": "", "events": ""}
     calls = []
     monkeypatch.setattr(tts, "synthesise", lambda text, voice, path: (calls.append(text), path.write_bytes(b"ID3")))
-    a = tts.audio("Hello there.", "en-US-AriaNeural", tmp_path / "audio")
-    b = tts.audio("Hello there.", "en-US-AriaNeural", tmp_path / "audio")
-    c = tts.audio("Hello there.", "en-GB-SoniaNeural", tmp_path / "audio")
-    assert a == b and a != c and a.suffix == ".mp3" and calls == ["Hello there.", "Hello there."]   # the second play needs no network
-    assert a == tts.audio_path("Hello there.", "en-US-AriaNeural", tmp_path / "audio")
+    a = tts.audio("Hello there.", "af_heart", tmp_path / "audio")
+    b = tts.audio("Hello there.", "af_heart", tmp_path / "audio")
+    c = tts.audio("Hello there.", "am_michael", tmp_path / "audio")
+    assert a == b and a != c and a.suffix == ".wav" and calls == ["Hello there.", "Hello there."]   # the second play needs no model
+    assert a == tts.audio_path("Hello there.", "af_heart", tmp_path / "audio")
+    # Kokoro is the engine (#21): an edge-tts voice name left in sentences.csv maps to one fixed Kokoro voice
+    assert tts.voice_of("af_bella") == "af_bella" and tts.voice_of("en-GB-SoniaNeural") in tts.VOICES["kokoro"]
+    assert tts.audio_path("x", "en-GB-SoniaNeural") == tts.audio_path("x", tts.voice_of("en-GB-SoniaNeural"))
+    assert drills.VOICES == tts.VOICES["kokoro"] and tts.MEDIA[a.suffix] == "audio/wav"
 
 
 @pytest.fixture
@@ -246,8 +250,8 @@ def test_cloze_and_dictation_api(practice):
     assert d["subband"] == "1k-a" or d["family"] in mine
     assert (practice / "sentences.csv").exists() and len(drills.load_sentences()) > 1000
     a = c.get(d["audio_url"])
-    assert a.status_code == 200 and a.headers["content-type"] == "audio/mpeg" and a.content.startswith(b"ID3")
-    assert len(list((practice / "audio").glob("*.mp3"))) == 1
+    assert a.status_code == 200 and a.headers["content-type"] == "audio/wav" and a.content.startswith(b"ID3")
+    assert len(list((practice / "audio").glob("*.wav"))) == 1
     row = next(r for r in drills.load_sentences() if r["id"] == d["id"])
     ok = c.post(f"/api/drill/listen-and-type/{d['id']}", json={"attempt": d["attempt"], "typed": row["sentence"], "ms": 20000, "plays": 2}).json()
     assert ok["score"] == 1.0 and ok["errors"] == [] and ok["added"] == [] and ok["reference"] == row["sentence"]

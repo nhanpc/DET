@@ -187,7 +187,7 @@ practice/
 │   └── passages/                     # hand-pasted 50–80-word passages, front matter with the source URL
 ├── listen-and-type/
 │   ├── sentences.csv                 # id, family, subband, sentence, voice — built from senses.csv on first use, gitignored
-│   └── audio/                        # edge-tts mp3 cache, gitignored
+│   └── audio/                        # TTS cache (Kokoro WAV since #21; edge-tts MP3 with DET_TTS=edge), gitignored
 ├── speaking/
 │   ├── prompts.csv                   # id, task, prompt, photo, source (Read Aloud has no rows: it draws from sentences.csv)
 │   ├── photos/                       # own photos, gitignored
@@ -202,8 +202,9 @@ practice/
 1. `app/drills.py` — the pure functions: the C-test damage rule and the
    deterministic item ids (`<family>.<sense>.<seed>`, `<slug>.<seed>`), the
    sentence filter and `build_sentences()`, the dictation diff and score, the
-   task timings, wrong word → family. `app/tts.py` wraps edge-tts
-   (`save_sync`, MP3 cache). `app/main.py` adds `/api/drill/<task>/next`,
+   task timings, wrong word → family. `app/tts.py` wraps the TTS engine
+   (Kokoro-82M since #21, edge-tts as the fallback; one cached clip per
+   voice and text). `app/main.py` adds `/api/drill/<task>/next`,
    `/api/drill/<task>/<id>` (answer or self-rating), `…/<id>/audio` (the
    cached MP3; `POST` uploads a recording), `…/<id>/draft` (autosave),
    `…/<attempt>/recording`; `app/store.py` adds `append_attempt()` /

@@ -14,11 +14,11 @@ answer ends with one git commit of the row, the draft and my-words
 |---|---|---|---|---|
 | `read-and-complete` | C-test: complete the damaged words (first half given) | *passage mode* (default): `read-and-complete/passages/*.md`, the 440-passage bank, passages with `b_text` near `θ`, a priority family damaged when one is in the window; *sentence mode*: `vocab/senses.csv` examples of the priority pool's families | 3 min / 1 min | credit = correct blanks ÷ blanks; moves `θ` |
 | `fill-in-the-blanks` | one sentence, one word missing but for its first third (`ten____`) | `listen-and-type/sentences.csv`, sentences with `b` near `θ`, the priority pool's families first | 20 s | credit 1 / 0; moves `θ` |
-| `listen-and-type` | dictation: play ≤ 3 times, type the sentence | `listen-and-type/sentences.csv`, sentences with `b` near `θ` (frontier sub-band before the first test), the priority pool's families first, edge-tts audio | 1 min | credit = 1 − character edits ÷ length; moves `θ` |
+| `listen-and-type` | dictation: play ≤ 3 times, type the sentence | `listen-and-type/sentences.csv`, sentences with `b` near `θ` (frontier sub-band before the first test), the priority pool's families first, Kokoro audio | 1 min | credit = 1 − character edits ÷ length; moves `θ` |
 | `read-aloud` | read the sentence; record | the same sentence bank, the same order | 20 s | self-rating |
 | `speak-photo` | describe a photo; record | `speaking/photos/` (any image; a `prompts.csv` row can give it a prompt) | 20 s prep, 30–90 s | self-rating |
 | `read-then-speak` | speak on a written prompt; record | `speaking/prompts.csv` | 20 s prep, 30–90 s | self-rating |
-| `listen-then-speak` | the prompt is read aloud (≤ 3 plays); record | `speaking/prompts.csv`, edge-tts | 20 s prep, 30–90 s | self-rating |
+| `listen-then-speak` | the prompt is read aloud (≤ 3 plays); record | `speaking/prompts.csv`, Kokoro audio | 20 s prep, 30–90 s | self-rating |
 | `write-photo` | one or more sentences about a photo | `speaking/photos/` | 1 min | self-rating, words |
 | `read-then-write` | write on a prompt | `writing/prompts.csv` | 5 min, 50 words | self-rating, words |
 | `interactive-writing` | part 1, then the row's `follow_up` on what you wrote | `writing/prompts.csv` | 5 min + 3 min, 50 words | self-rating, words |
@@ -246,16 +246,19 @@ sentence with the answer, the kind, and `θ` before → after.
 `listen-and-type/sentences.csv` (`id, family, subband, sentence, voice,
 b_text, b_adjust, features`) is built from `senses.csv` on the first request
 — one 6–14-word example per family whose text contains a form of the family,
-one of four edge-tts accents per row, its `b_text` and the features behind it
-as `k=v;…` — and is not committed, so the voices are local to the machine; a
-file with an older header is rebuilt the same way. The MP3 is generated once
-(needs the internet) and cached in `listen-and-type/audio/`; the second play
+one of the engine's voices per row (Kokoro's four American voices since #21;
+a row that still names an edge-tts voice maps to one fixed Kokoro voice), its
+`b_text` and the features behind it as `k=v;…` — and is not committed, so the
+voices are local to the machine; a file with an older header is rebuilt the
+same way. The clip is generated once (Kokoro-82M on this machine, natural
+pace, peak-normalised WAV; `DET_TTS=edge` uses edge-tts and needs the
+internet) and cached in `listen-and-type/audio/`; the second play
 needs no network.
 
 ```mermaid
 flowchart LR
     TH["θ, se<br/>last test + drills"] --> P["pool: |b − θ| ≤ 0.6<br/>widened by 0.3 until 10<br/>not shown in 7 days"]
-    P --> S[sentence] --> V["edge-tts · ≤ 3 plays"] --> Y[typed]
+    P --> S[sentence] --> V["Kokoro TTS · ≤ 3 plays"] --> Y[typed]
     Y --> D["character-level<br/>edit distance"]
     D --> C["credit 0 … 1"] --> U["θ update<br/>fractional Rasch"]
     Y --> W["word-level diff<br/>difflib opcodes"]
@@ -324,7 +327,7 @@ as `be`, `a`, `to` — the same `bank.WORD` rule as the test) and function
 words are logged in `attempts.csv` but not added, so a blank dictation
 answer or a `t__` blank does not push function words onto the study list.
 
-**Speaking.** Prompt (or photo, or the prompt read by edge-tts), a 20 s
+**Speaking.** Prompt (or photo, or the prompt read by the TTS engine), a 20 s
 preparation countdown, then the browser's `MediaRecorder` starts by itself;
 *Stop* unlocks after the 30 s minimum and the clock stops it at 90 s. The
 recording is uploaded as `speaking/recordings/<attempt>.webm` and played back

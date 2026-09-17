@@ -40,6 +40,10 @@ def test_commit_now_commits_only_the_named_paths(repo):
     (data / "results.csv").unlink()
     assert vcs.commit_now([data], "gone", root=repo, push=False)
     assert git(repo, "ls-files", "vocab") == "vocab/tests/levels.csv"
+    # a path that does not exist yet is dropped, not fatal (the drafts folder before the first draft)
+    (data / "levels.csv").write_text("d\n")
+    assert vcs.commit_now([data / "levels.csv", repo / "practice" / "writing" / "drafts"], "no drafts yet", root=repo, push=False)
+    assert git(repo, "log", "-1", "--format=%s") == "no drafts yet"
     # paths outside the repo, or no repo at all, are a quiet no-op
     assert not vcs.commit_now([repo.parent / "elsewhere.csv"], "x", root=repo, push=False)
     assert not vcs.commit_now([repo / "x"], "x", root=repo / "vocab", push=False)

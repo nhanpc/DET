@@ -33,6 +33,7 @@ from typing import Iterable, Optional
 
 from . import phon
 from .bank import PRACTICE, WORD
+from . import tts
 
 SENTENCES = PRACTICE / "listen-and-type" / "sentences.csv"
 SENTENCES_HEADER = ["id", "family", "subband", "sentence", "voice", "b_text", "b_adjust", "features"]   # #15 columns last
@@ -44,7 +45,7 @@ REL_RECORDINGS, REL_DRAFTS = "speaking/recordings", "writing/drafts"   # the `fi
 RECORDINGS = PRACTICE / REL_RECORDINGS
 DRAFTS = PRACTICE / REL_DRAFTS
 
-VOICES = ["en-US-AriaNeural", "en-GB-SoniaNeural", "en-AU-NatashaNeural", "en-IN-NeerjaNeural"]
+VOICES = tts.voices()               # the engine's pool (#21): Kokoro's American voices, or edge-tts's four accents
 MIN_WORDS, MAX_WORDS = 6, 14        # example length for the drills (cloze: ≥ MIN_WORDS; dictation: also ≤ MAX_WORDS)
 MIN_BLANKS, MAX_BLANKS = 2, 5       # blanks per cloze item; fewer → the item is skipped, more → a window of MAX_BLANKS
 PLAYS = 3                           # dictation and Listen Then Speak: how often the audio may be played
