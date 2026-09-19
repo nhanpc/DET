@@ -95,7 +95,7 @@ def test_dictation_score_opcodes_and_clamp():
     assert [d["op"] for d in drills.dictation_score("one two three", "one three")["diff"]] == ["equal", "delete", "equal"]
 
 
-def test_sentence_bank_from_the_real_data():
+def test_sentence_bank_from_the_real_data(tmp_path):
     """Cloze candidates: ≥ 6 words with a family form; dictation bank: 6–14 words, one per family, sorted by rank."""
     bank = main.BANK
     cands = drills.sentence_candidates(main.SENSES, bank.index)
@@ -104,6 +104,15 @@ def test_sentence_bank_from_the_real_data():
         per.setdefault(c["subband"], set()).add(c["family"])
     assert 120 <= len(per["4k-a"]) <= 170 and 120 <= len(per["6k-a"]) <= 130           # the counts in issue #10
     assert any(c["family"] == "skip" and c["example"] == SENTENCE for c in cands)
+    # archaic examples never reach a drill (#22): not as a candidate, not from an older cached bank
+    assert drills.archaic("a local motion keepeth bodies integral") and drills.archaic("thou shalt not") and drills.archaic("love thy neighbor")
+    assert not drills.archaic("her teeth were beneath the surface") and not drills.archaic("the twentieth century")
+    assert not any(drills.archaic(c["example"]) for c in cands)
+    assert any("keepeth" in r["example"] for r in main.SENSES)
+    old = tmp_path / "old.csv"
+    drills.write_sentences([{"id": "integral.2", "family": "integral", "subband": "4k-b", "sentence": "a local motion keepeth bodies integral", "voice": "af_heart"},
+                            {"id": "skip.1", "family": "skip", "subband": "1k-a", "sentence": SENTENCE, "voice": "af_heart"}], old)
+    assert [r["id"] for r in drills.load_sentences(old)] == ["skip.1"]
     assert all(drills.word_count(c["example"]) >= drills.MIN_WORDS for c in cands)
     rows = drills.build_sentences(main.SENSES, bank.index, random.Random(1))
     assert len(rows) == len({r["family"] for r in rows}) and all(r["id"] == f"{r['family']}." + r["id"].split(".")[1] for r in rows)

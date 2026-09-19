@@ -81,9 +81,17 @@ WRITING = [t for t, v in TASKS.items() if v["skill"] == "writing"]
 TOKEN = re.compile(r"[A-Za-z0-9]+(?:['’][A-Za-z]+)*")     # one word, apostrophes inside (don't → one token, not alphabetic)
 SENTENCE_END = re.compile(r"[.!?]+[\"'’”)]*(?=\s|$)")
 LETTERS = re.compile(r"^[A-Za-z]+$")
+# WordNet examples quote Bacon, the King James Bible and Kipling; nobody should have to type `keepeth` (issue #22).
+ARCHAIC = re.compile(r"\b(?:thou|thee|thy|thine|hath|doth|hast|dost|shalt|wilt|ere|whilst|unto|oft|nay|yea|'tis|'twas|o'er|e'er|"
+                     r"whence|thither|hither|betwixt|(?!twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth|hundredth)[a-z]{3,}eth)\b", re.IGNORECASE)
 
 
 # ---- Read and Complete ------------------------------------------------------------------------------------
+
+def archaic(text: str) -> bool:
+    """True for an example with an archaic form — skipped by every drill that draws sentences."""
+    return ARCHAIC.search(text) is not None
+
 
 def words(text: str) -> list[str]:
     return [m.group() for m in TOKEN.finditer(text)]
@@ -299,11 +307,12 @@ def members(row: dict) -> list[str]:
 def sentence_candidates(senses: Iterable[dict], index: dict[str, dict], families: Optional[set[str]] = None,
                         longest: Optional[int] = None) -> list[dict]:
     """senses.csv rows (`family, sense, example, subband` added) whose example holds a form of the family and has
-    MIN_WORDS words or more (≤ `longest` when given); `families` narrows the pool. In senses.csv order."""
+    MIN_WORDS words or more (≤ `longest` when given) and no archaic form; `families` narrows the pool. In
+    senses.csv order."""
     out, pats = [], {}
     for r in senses:
         f, ex = r["family"], r["example"]
-        if not ex or f not in index or (families is not None and f not in families):
+        if not ex or f not in index or (families is not None and f not in families) or archaic(ex):
             continue
         n = word_count(ex)
         if n < MIN_WORDS or (longest is not None and n > longest):
@@ -342,14 +351,14 @@ def write_sentences(rows: list[dict], path: Optional[Path] = None) -> Path:
 
 def load_sentences(path: Optional[Path] = None) -> list[dict]:
     """The cached bank, or [] when the file is missing or was written with another header (before #15) — the
-    caller rebuilds it."""
+    caller rebuilds it. Archaic rows of a bank built before the filter are dropped on the way in."""
     path = path or SENTENCES
     if not path.exists():
         return []
     with path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-    return rows if reader.fieldnames == SENTENCES_HEADER else []
+    return [r for r in rows if not archaic(r["sentence"])] if reader.fieldnames == SENTENCES_HEADER else []
 
 
 # ---- Listen and Type ---------------------------------------------------------------------------------------

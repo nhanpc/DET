@@ -274,3 +274,9 @@ fastest voice, is the confidence outlier on the stronger listener (min 0.67,
 30 % unsure) and was dropped; the pool is `af_heart`, `af_bella`,
 `am_michael`. Rows that mapped to `am_fenrir` re-map, so a few clips are
 generated again.
+
+Two follow-ups from the same run: the first play of a dictation runs at
+0.85× (the other two at native pace, all three counted) as a ramp, and
+`drills.archaic()` keeps the seven WordNet examples with *thou / thy / thee /
+hath / -eth* forms out of every drill — the first sentence I was served,
+*a local motion keepeth bodies integral*, was one of them.

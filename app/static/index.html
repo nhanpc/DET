@@ -746,16 +746,18 @@
     wireResult(() => openDrill('fill-in-the-blanks'));
   }
 
-  // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits.
+  // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits. The first play runs at
+  // SLOW_FIRST (issue #22: a ramp toward the native pace), the others at 1×; all three count.
+  const SLOW_FIRST = 0.85;
   function renderDictation(it) {
     stage(`<audio id="d-audio" preload="auto" src="${it.audio_url}"></audio>` +
       `<div class="row"><button class="primary" id="d-play">Play <span class="mono" id="d-plays">${it.plays_left} left</span></button></div>` +
       `<textarea class="dict" id="d-typed" placeholder="Type the sentence you hear" autocomplete="off" spellcheck="false"></textarea>` +
-      `<div class="hint">${it.words} words · Enter when done</div>`);
+      `<div class="hint">${it.words} words · first play at ${SLOW_FIRST}×, then native pace · Enter when done</div>`);
     const audio = $('d-audio');
     $('d-play').onclick = () => {
       if (D.plays >= it.plays_left) return;
-      D.plays += 1; audio.currentTime = 0; audio.play();
+      D.plays += 1; audio.currentTime = 0; audio.playbackRate = D.plays === 1 ? SLOW_FIRST : 1; audio.play();
       $('d-plays').textContent = `${it.plays_left - D.plays} left`;
       if (D.plays >= it.plays_left) $('d-play').disabled = true;
       $('d-typed').focus();

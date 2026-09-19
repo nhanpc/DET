@@ -252,7 +252,8 @@ a row that still names an edge-tts voice maps to one fixed Kokoro voice), its
 voices are local to the machine; a file with an older header is rebuilt the
 same way. The clip is generated once (Kokoro-82M on this machine, natural
 pace, peak-normalised WAV; `DET_TTS=edge` uses edge-tts and needs the
-internet) and cached in `listen-and-type/audio/`; the second play
+internet) and cached in `listen-and-type/audio/`; the first play runs at
+0.85× as a ramp toward the native pace, the other two at 1× (#22); the second play
 needs no network.
 
 ```mermaid
