@@ -176,6 +176,9 @@
   .dstage textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .dstage textarea.dict { min-height: 90px; font: 400 22px/1.5 var(--serif); text-align: center; }
   .dstage .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .speeds { display: inline-flex; gap: 4px; }
+  .speed { height: 34px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--surface); color: var(--text-2); font: 500 13px var(--mono); }
+  .speed.on { background: var(--text); color: var(--surface); border-color: var(--text); }
   .rec { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; background: var(--red-bg); color: var(--red); font-weight: 500; }
   .rec i { width: 10px; height: 10px; border-radius: 5px; background: currentColor; animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .2; } }
@@ -582,7 +585,7 @@
     'speak-photo': 'Speak About the Photo', 'read-then-speak': 'Read Then Speak', 'listen-then-speak': 'Listen Then Speak',
     'write-photo': 'Write About the Photo', 'read-then-write': 'Read Then Write', 'interactive-writing': 'Interactive Writing' };
   const SPEAKING = ['read-aloud', 'speak-photo', 'read-then-speak', 'listen-then-speak'], WRITING = ['write-photo', 'read-then-write', 'interactive-writing'];
-  const D = { task: null, mode: 'passage', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
+  const D = { task: null, mode: 'passage', item: null, timer: null, startedAt: 0, ms: 0, plays: 0, speed: 1, recorder: null, stream: null, chunks: [], autosave: null, text: '', text2: '', rating: [0, 0, 0, 0] };
   // The practice-page header (issue #13): the priority pool — the words missed in the test or in practice, drawn first.
   const poolLine = (p) => `priority pool: ${p.total} word${p.total === 1 ? '' : 's'} (my-words ${p['my-words']} · repeat ${p.repeat} · missed ${p.missed} · shaky ${p.shaky})`;
   function renderDrills(tasks, today, frontier, pool) {
@@ -746,18 +749,27 @@
     wireResult(() => openDrill('fill-in-the-blanks'));
   }
 
-  // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits. The first play runs at
-  // SLOW_FIRST (issue #22: a ramp toward the native pace), the others at 1×; all three count.
-  const SLOW_FIRST = 0.85;
+  // Listen and Type: play at most 3 times, type what you hear; Enter or the clock submits. The speed buttons set the
+  // playback rate of every play (issue #22; remembered in this browser, 1× = the DET's native pace); it goes into the row.
+  const SPEEDS = [0.6, 0.7, 0.85, 1];
+  const speedGet = () => { try { const v = parseFloat(localStorage.getItem('det-speed')); return SPEEDS.includes(v) ? v : 0.85; } catch (e) { return 0.85; } };
+  const speedSet = (v) => { try { localStorage.setItem('det-speed', v); } catch (e) {} };
   function renderDictation(it) {
+    D.speed = speedGet();
     stage(`<audio id="d-audio" preload="auto" src="${it.audio_url}"></audio>` +
-      `<div class="row"><button class="primary" id="d-play">Play <span class="mono" id="d-plays">${it.plays_left} left</span></button></div>` +
+      `<div class="row"><button class="primary" id="d-play">Play <span class="mono" id="d-plays">${it.plays_left} left</span></button>` +
+      `<span class="speeds" id="d-speeds">${SPEEDS.map(v => `<button class="speed${v === D.speed ? ' on' : ''}" data-speed="${v}">${v}×</button>`).join('')}</span></div>` +
       `<textarea class="dict" id="d-typed" placeholder="Type the sentence you hear" autocomplete="off" spellcheck="false"></textarea>` +
-      `<div class="hint">${it.words} words · first play at ${SLOW_FIRST}×, then native pace · Enter when done</div>`);
+      `<div class="hint">${it.words} words · 1× is the test's pace · Enter when done</div>`);
     const audio = $('d-audio');
+    $('d-speeds').onclick = (e) => {
+      const b = e.target.closest('button.speed'); if (!b) return;
+      D.speed = parseFloat(b.dataset.speed); speedSet(D.speed); audio.playbackRate = D.speed;
+      document.querySelectorAll('#d-speeds .speed').forEach(x => x.classList.toggle('on', x === b));
+    };
     $('d-play').onclick = () => {
       if (D.plays >= it.plays_left) return;
-      D.plays += 1; audio.currentTime = 0; audio.playbackRate = D.plays === 1 ? SLOW_FIRST : 1; audio.play();
+      D.plays += 1; audio.currentTime = 0; audio.playbackRate = D.speed; audio.play();
       $('d-plays').textContent = `${it.plays_left - D.plays} left`;
       if (D.plays >= it.plays_left) $('d-play').disabled = true;
       $('d-typed').focus();
@@ -770,7 +782,7 @@
     if (!D.item || $('d-stage').hidden) return;
     stopClock(); $('d-audio').pause(); D.ms = Date.now() - D.startedAt;
     const typed = $('d-typed').value;
-    const r = await api(`/api/drill/listen-and-type/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, plays: D.plays, timed_out: timedOut }) });
+    const r = await api(`/api/drill/listen-and-type/${D.item.id}`, { method: 'POST', body: JSON.stringify({ attempt: D.item.attempt, typed, ms: D.ms, plays: D.plays, speed: D.speed, timed_out: timedOut }) });
     // each wrong reference word carries its kind (issue #16): hearing, spelling, form or vocabulary
     const kinds = {};
     r.events.forEach(e => { if (e.kind !== 'hit' && !(e.word in kinds)) kinds[e.word] = e.kind; });
@@ -781,7 +793,7 @@
       : `<span class="bad">${esc(d.typed.join(' '))}</span> ${tagged(d.ref, 'want')}`).join(' ');
     const theta = r.theta == null ? 'θ moves once a reliable test is on record'
       : `θ ${r.theta.toFixed(2)} → ${r.theta_after.toFixed(2)} ± ${r.se_after.toFixed(2)} · sentence b ${r.b.toFixed(2)}`;
-    resultBox(`<div class="big"><b>${Math.round(r.credit * 100)}%</b><span>credit · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}×${timedOut ? ' · time ran out' : ''}</span></div>` +
+    resultBox(`<div class="big"><b>${Math.round(r.credit * 100)}%</b><span>credit · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'} in ${r.words} words · played ${r.plays}× at ${r.speed}×${timedOut ? ' · time ran out' : ''}</span></div>` +
       `<div class="theta">${theta}</div>` +
       `<div class="text">${markTarget(diff, r.forms)}</div><div class="note">Reference: <em>${markTarget(esc(r.reference), r.forms)}</em> — <span class="mono">green</span> right, <span class="mono">red</span> missing or wrong (the right word after it, tagged with what went wrong: hearing, spelling, form, vocabulary), <span class="mono">grey</span> extra; the target family is marked${D.item.reason_label ? ' (' + esc(D.item.reason_label) + ')' : ''}</div>` +
       `<audio controls src="${D.item.audio_url}"></audio>` + addedLine(r.added) + doneLine(r.done) + backButtons());

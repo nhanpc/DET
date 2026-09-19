@@ -33,7 +33,7 @@ MISSES_HEADER = ["date", "session", "subband", "word", "kind", "ms"]
 LEVELS_HEADER = ["date", "session", "level", "det_low", "det_high", "blocks", "items", "fa_rate", "reliable", "theta", "se"]
 MOCKS_HEADER = ["date", "source", "overall", "literacy", "comprehension", "conversation", "production", "weakest", "notes"]
 ATTEMPTS_HEADER = ["date", "attempt", "task", "item", "subband", "seconds", "timed_out", "score", "self", "words",
-                   "errors", "file", "theta", "b", "events"]          # theta, b, events since #16 (blank before)
+                   "errors", "file", "theta", "b", "events", "speed"]   # theta, b, events since #16, speed since #22 (blank before)
 
 
 def _append(path: Path, header: list[str], rows: list[list]) -> None:
@@ -155,5 +155,5 @@ def append_attempt(row: dict) -> None:
 
 
 def load_attempts() -> list[dict]:
-    """attempts.csv rows as strings; `theta`, `b` and `events` are "" on rows written before #16."""
+    """attempts.csv rows as strings; `theta`, `b` and `events` are "" on rows written before #16, `speed` before #22."""
     return _read(ATTEMPTS, ATTEMPTS_HEADER)

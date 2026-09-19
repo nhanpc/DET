@@ -252,8 +252,10 @@ a row that still names an edge-tts voice maps to one fixed Kokoro voice), its
 voices are local to the machine; a file with an older header is rebuilt the
 same way. The clip is generated once (Kokoro-82M on this machine, natural
 pace, peak-normalised WAV; `DET_TTS=edge` uses edge-tts and needs the
-internet) and cached in `listen-and-type/audio/`; the first play runs at
-0.85× as a ramp toward the native pace, the other two at 1× (#22); the second play
+internet) and cached in `listen-and-type/audio/`; the speed buttons on the
+screen (0.6× · 0.7× · 0.85× · 1×, remembered in the browser, 1× = the test's
+pace) set the rate of every play and go into the row's `speed` column (#22);
+the second play
 needs no network.
 
 ```mermaid
@@ -378,6 +380,7 @@ One row per finished or timed-out attempt, every task type. Written by
 | `theta` | the learner's `θ` *before* the attempt (dictation since #16, cloze and fill-in since #17); blank before the first reliable test and on older rows |
 | `b` | the item's difficulty (`b_text + b_adjust`) at the time; blank on older rows |
 | `events` | `family:kind|family:kind` — one per content word of a dictation sentence (`hit`, `form`, `hearing`, `spelling`, `vocabulary`), one per content-word blank of a cloze item and one for the fill-in word (`hit`, `spelling`, `vocabulary`); blank on older rows |
+| `speed` | dictation: the playback rate chosen on the screen (`0.6`, `0.7`, `0.85` or `1`, the test's pace; #22); blank on older rows and other tasks |
 
 Rows written before #16 (dictation) and #17 (cloze) have no `theta`, `b` or
 `events`: they load with blanks, the header is upgraded on the next write,

@@ -199,7 +199,7 @@ def test_old_attempts_rows_load_and_the_report_checks(tmp_path, monkeypatch):
     store.append_attempt({"date": "2026-09-17", "attempt": "2026-09-17_101010_abcd", "task": "listen-and-type", "item": "rent.1",
                           "score": 0.9, "theta": 6.1, "b": 5.9, "events": "rent:hit"})
     text = path.read_text().splitlines()
-    assert text[0] == ",".join(store.ATTEMPTS_HEADER) and text[1].endswith("rent>went,,,,") and text[2].endswith("0.9,,,,,6.1,5.9,rent:hit")
+    assert text[0] == ",".join(store.ATTEMPTS_HEADER) and text[1].endswith("rent>went,,,,,") and text[2].endswith("0.9,,,,,6.1,5.9,rent:hit,")
     rows = store.load_attempts()
     assert learn.drill_responses(rows) == [(5.9, 0.9)] and drills.recent_items(rows, "listen-and-type", date(2026, 9, 18)) == {"rent.1"}
     # the report: the listening line and the counts from the same rows; --check unaffected

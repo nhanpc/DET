@@ -57,6 +57,7 @@ class DrillAnswer(BaseModel):
     timed_out: bool = False
     typed: list[str] | str = ""    # cloze: one string per blank; dictation: the sentence
     plays: int = 0                 # dictation, Listen Then Speak: how often the audio was played
+    speed: float = 1.0             # dictation: the playback rate chosen on the screen (#22)
     text: str = ""                 # writing: part 1
     text2: str = ""                # Interactive Writing: part 2
     rating: list[int] = []         # speaking, writing: the four 1–5 lines (drills.RATING_LINES)
@@ -617,7 +618,7 @@ def dictation_answer(item: str, a: DrillAnswer, row: dict) -> dict:
     events = drills.dictation_events(r["diff"], theta if theta is not None else irt.THETA0, LEX)
     added = add_event_words(events, "listen-and-type", s["sentence"])
     row.update(subband=s["subband"], score=r["score"], words=r["words"], errors=drills.errors_column(r["errors"]),
-               theta=theta, b=b, events=drills.events_column(events))
+               theta=theta, b=b, events=drills.events_column(events), speed=a.speed)
     store.append_attempt(row)
     attempts = store.load_attempts()
     after = learn.drill_theta(st["thetas"], attempts)                  # θ now, the row just written included
@@ -625,7 +626,7 @@ def dictation_answer(item: str, a: DrillAnswer, row: dict) -> dict:
         drills.write_sentences(bank)
     return {"attempt": row["attempt"], "score": r["score"], "credit": r["score"], "word_score": r["word_score"],
             "words": r["words"], "reference": s["sentence"], "diff": r["diff"], "errors": r["errors"], "events": events,
-            "added": added, "plays": a.plays, "timed_out": a.timed_out, "b": b, **target_view(s["family"], {}, [], {}),
+            "added": added, "plays": a.plays, "speed": a.speed, "timed_out": a.timed_out, "b": b, **target_view(s["family"], {}, [], {}),
             "theta": theta, "se": st["se"], "theta_after": after[0] if after else None, "se_after": after[1] if after else None,
             "done": close_rows()}
 

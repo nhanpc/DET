@@ -177,7 +177,7 @@ def test_attempt_row_and_tts_cache(tmp_path, monkeypatch):
     assert list(rows[0]) == store.ATTEMPTS_HEADER
     assert rows[0] == {"date": "2026-09-16", "attempt": "2026-09-16_101010_abcd", "task": "read-aloud", "item": "skip.1",
                        "subband": "", "seconds": "", "timed_out": "1", "score": "", "self": "4", "words": "", "errors": "", "file": "",
-                       "theta": "", "b": "", "events": ""}
+                       "theta": "", "b": "", "events": "", "speed": ""}
     calls = []
     monkeypatch.setattr(tts, "synthesise", lambda text, voice, path: (calls.append(text), path.write_bytes(b"ID3")))
     a = tts.audio("Hello there.", "af_heart", tmp_path / "audio")
