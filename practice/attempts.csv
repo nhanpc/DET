@@ -12,3 +12,4 @@ date,attempt,task,item,subband,seconds,timed_out,score,self,words,errors,file,th
 2026-09-17,2026-09-17_194810_1513,listen-and-type,toxic.1,4k-b,60,1,0.0,,6,suffering>;from>;exposure>;to>;toxic>;substances>,,7.6333,7.6532,suffer:hearing|expose:hearing|toxic:vocabulary|substance:hearing
 2026-09-19,2026-09-19_130901_7032,listen-and-type,suffer.2,2k-a,24,0,0.5128,,7,suffered>shock;a>after;fracture>;in>;accident>acidence,,7.581,7.4716,suffer:vocabulary|fracture:vocabulary|accident:vocabulary
 2026-09-19,2026-09-19_130953_0c0a,listen-and-type,bump.3,2k-b,15,0,0.1471,,7,the>bycicle;bump>;threw>;him>;off>;the>;bicycle>,,7.5784,7.318,bump:hearing|throw:hearing|off:hearing|bicycle:vocabulary
+2026-09-19,2026-09-19_131025_72d7,listen-and-type,instrument.2,2k-a,20,0,0.1778,,8,greed>greet;was>;the>;instrument>;of>;my>;destruction>,,7.5197,7.436,greed:hearing|instrument:hearing|destruction:hearing
